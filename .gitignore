@@ -1,0 +1,30 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Release signing secrets (see app/build.gradle.kts)
+keystore.properties
+*.jks
+*.keystore
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Kotlin compiler caches
+.kotlin/
+
+# Voice training workspace (venv, checkpoints, exports)
+/voice-training/work/
+__pycache__/
