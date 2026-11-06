@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Dynamic Island</string>
+    <string name="accessibility_label">Dynamic Island overlay</string>
+    <string name="accessibility_description">Lets Dynamic Island draw over the status bar and camera cutout to show music, timers and notifications. It also reads which app is in the foreground so it can hide itself in apps you choose. If you allow it in the assistant settings, the assistant can read the text on screen when you ask it to (never in the background). If you turn on the island volume bar, it also handles the volume keys.</string>
+</resources>

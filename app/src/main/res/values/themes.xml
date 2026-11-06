@@ -1,0 +1,14 @@
+<resources>
+    <style name="Theme.DynamicIsland" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Invisible host for the assistant while it listens. -->
+    <style name="Theme.DynamicIsland.Assist" parent="android:Theme.Translucent.NoTitleBar">
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <!-- No black band at the top: draw (nothing) behind the status bar and camera cutout too. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowTranslucentStatus">false</item>
+    </style>
+</resources>
