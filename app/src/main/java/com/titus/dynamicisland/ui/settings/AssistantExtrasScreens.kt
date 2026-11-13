@@ -43,6 +43,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun NetworkScreen(s: SettingsHandle, onBack: () -> Unit) {
     val v = s.value
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
     // Device in the dialog: its index, -1 for a new one, null when the dialog is closed.
@@ -80,15 +81,19 @@ fun NetworkScreen(s: SettingsHandle, onBack: () -> Unit) {
         note(
             "\"Lights on\", \"open the garage\": a web request by name. Works with Home Assistant (REST API or webhooks), " +
                 "IFTTT, Shelly and other smart plugs with a local API, routers … Google Home itself has no API apps may use; " +
-                "with \"Use apps for you\" on, the assistant switches those devices in the Google Home app instead.",
+                "with \"Use apps for you\" on, the assistant switches those devices in the Google Home app instead. " +
+                "Links into apps work too: \"kdeconnect://runcommand/<device>/<command>\" runs a KDE Connect command.",
         )
         v.httpActions.forEachIndexed { index, a ->
             item("http-$index-${a.name}") {
-                SettingRow(a.name, "${a.method} ${a.url}" + a.description.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty(),
+                SettingRow(a.name, (if (a.isWeb) "${a.method} ${a.url}" else a.url) + a.description.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty(),
                     onClick = { actionDialog = index }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TermButton("run") {
-                            test("Running ${a.name}") { NetworkTools.request(a, v.httpTimeoutSec).let { (code, body) -> "HTTP $code ${body.take(120)}" } }
+                            test("Running ${a.name}") {
+                                if (!a.isWeb) { NetworkTools.open(context, a); "Opened." }
+                                else NetworkTools.request(a, v.httpTimeoutSec).let { (code, body) -> "HTTP $code ${body.take(120)}" }
+                            }
                         }
                         TermButton("remove", danger = true) {
                             s.update { it.copy(httpActions = it.httpActions.filterIndexed { i, _ -> i != index }) }
@@ -158,7 +163,7 @@ private fun ActionDialog(editing: HttpAction?, onDismiss: () -> Unit, onSave: (H
     var body by remember { mutableStateOf(editing?.body.orEmpty()) }
     var headers by remember { mutableStateOf(editing?.headers.orEmpty()) }
     val action = HttpAction(name.trim(), url.trim(), method, body, headers, description.trim())
-    val valid = action.name.isNotEmpty() && (action.url.startsWith("http://") || action.url.startsWith("https://"))
+    val valid = action.name.isNotEmpty() && action.hasValidUrl
     TermDialog(
         if (editing != null) "Edit ${editing.name}" else "Add a web action",
         onDismiss,
@@ -169,10 +174,15 @@ private fun ActionDialog(editing: HttpAction?, onDismiss: () -> Unit, onSave: (H
     ) {
         TermField("Name", name, { name = it }, placeholder = "Living room lights on")
         TermField("What it does (for the assistant)", description, { description = it }, placeholder = "optional")
-        TermField("URL", url, { url = it }, placeholder = "http://homeassistant.local:8123/api/…", keyboard = KeyboardType.Uri)
-        ChoiceSetting("Method", HttpAction.METHODS, method, { it }) { method = it }
-        TermField("Body", body, { body = it }, placeholder = "{\"entity_id\": \"light.living_room\"}")
-        TermField("Headers", headers, { headers = it }, placeholder = "Authorization: Bearer …")
+        TermField("URL or app link", url, { url = it }, placeholder = "http://homeassistant.local:8123/api/…", keyboard = KeyboardType.Uri)
+        if (action.isWeb || url.isBlank()) {
+            ChoiceSetting("Method", HttpAction.METHODS, method, { it }) { method = it }
+            TermField("Body", body, { body = it }, placeholder = "{\"entity_id\": \"light.living_room\"}")
+            TermField("Headers", headers, { headers = it }, placeholder = "Authorization: Bearer …")
+        } else if (action.hasValidUrl) {
+            Text("An app link: the phone opens it, like tapping it. Method, body and headers don't apply.",
+                fontSize = 13.sp, color = Term.Dim, modifier = Modifier.padding(horizontal = 20.dp))
+        }
     }
 }
 
