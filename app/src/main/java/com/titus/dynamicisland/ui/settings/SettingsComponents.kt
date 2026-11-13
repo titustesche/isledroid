@@ -70,6 +70,9 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.titus.dynamicisland.ui.theme.GeistMono
 import com.titus.dynamicisland.ui.theme.Term
 import kotlin.math.floor
@@ -109,6 +112,20 @@ class SettingsListScope(private val inner: LazyListScope) : LazyListScope by inn
     override fun item(key: Any?, contentType: Any?, content: @Composable LazyItemScope.() -> Unit) {
         val rule = rowsInSection++ > 0
         inner.item(key, contentType) { CompositionLocalProvider(LocalRuleAbove provides rule) { content() } }
+    }
+
+    /**
+     * "Fine-tuning" with one "Advanced · [count]" row naming what's inside ([hint]); tapping it
+     * shows [content] below it, in the same section.
+     */
+    fun advanced(count: Int, hint: String, open: Boolean, onToggle: () -> Unit, content: SettingsListScope.() -> Unit) {
+        header("Fine-tuning")
+        item(contentType = "advanced") {
+            SettingRow("Advanced · $count", hint, onClick = onToggle, dim = true) {
+                Text(if (open) "↓" else "→", fontSize = 17.sp, color = Term.Faint, modifier = Modifier.padding(end = 8.dp))
+            }
+        }
+        if (open) content()
     }
 
     override fun items(
@@ -197,9 +214,11 @@ fun SettingRow(
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,
     leading: (@Composable () -> Unit)? = null,
+    dim: Boolean = false,
     trailing: @Composable () -> Unit = {},
 ) {
     val alpha = if (enabled) 1f else 0.4f
+    val titleColor = if (dim) Term.Dim else Term.Text
     Box(Modifier.fillMaxWidth().dashedRuleAbove(LocalRuleAbove.current).padding(horizontal = ListInset)) {
         Row(
             Modifier
@@ -215,9 +234,9 @@ fun SettingRow(
                 Spacer(Modifier.width(14.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, lineHeight = 22.sp, color = Term.Text.copy(alpha = alpha))
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, lineHeight = 22.sp, color = titleColor.copy(alpha = alpha))
                 if (summary != null) {
-                    Text(summary.calm(), fontSize = 13.sp, lineHeight = 18.sp, color = Term.Dim.copy(alpha = alpha),
+                    Text(summary.calm(), fontSize = 13.sp, lineHeight = 18.sp, color = (if (dim) Term.Faint else Term.Dim).copy(alpha = alpha),
                         modifier = Modifier.padding(top = 2.dp))
                 }
             }
@@ -417,6 +436,49 @@ fun NavRow(title: String, summary: String?, icon: ImageVector?, tint: Color = Te
     }
 }
 
+/** The current value, dimmed, then "→": a row that opens the page where [value] is set. [extra] sits before the value. */
+@Composable
+fun ValueNavRow(
+    title: String,
+    summary: String?,
+    value: String?,
+    dim: Boolean = false,
+    extra: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    SettingRow(title, summary, onClick = onClick, dim = dim) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            extra?.invoke()
+            if (value != null) {
+                Text(value, fontSize = 14.sp, color = Term.Dim, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+            }
+            Text("→", fontSize = 17.sp, color = Term.Faint, modifier = Modifier.padding(end = 8.dp))
+        }
+    }
+}
+
+/** A feature's switch, plus "→" to its own page: the pill switches it, the rest of the row opens the page. */
+@Composable
+fun SwitchNavRow(title: String, summary: String?, checked: Boolean, onChange: (Boolean) -> Unit, onOpen: () -> Unit) {
+    SettingRow(title, summary, onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TermToggle(checked, onChange = onChange)
+            Text("→", fontSize = 17.sp, color = Term.Faint, modifier = Modifier.padding(start = 4.dp, end = 8.dp))
+        }
+    }
+}
+
+/** A small outlined pill inside a row ("▶ hear"). */
+@Composable
+fun RowPill(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier.heightIn(min = 40.dp).clip(CircleShape).border(1.dp, Term.Border, CircleShape).clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(text, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Term.Text) }
+}
+
 /** "[x]" / "[ ]" at the end of a row, for picking items of a list. */
 @Composable
 fun PickRow(title: String, picked: Boolean, summary: String? = null, enabled: Boolean = true, onToggle: () -> Unit) {
@@ -479,6 +541,32 @@ fun TermCard(title: String, content: @Composable () -> Unit) {
     ) {
         Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.6.sp, color = Term.Label)
         content()
+    }
+}
+
+/**
+ * A modal in the terminal style: title, scrolling [content], then [buttons] in a row.
+ * Tapping outside or back calls [onDismiss].
+ */
+@Composable
+fun TermDialog(title: String, onDismiss: () -> Unit, buttons: @Composable () -> Unit, content: @Composable () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Term.Surface)
+                .border(1.dp, Term.Border, RoundedCornerShape(22.dp))
+                .padding(vertical = 18.dp),
+        ) {
+            Text(title.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.6.sp, color = Term.Label,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) { content() }
+            Row(
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) { buttons() }
+        }
     }
 }
 

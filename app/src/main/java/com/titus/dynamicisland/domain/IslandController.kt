@@ -165,6 +165,16 @@ class IslandController(
         override fun onGesture(gesture: Gesture) {
             val sample = preview.value?.second ?: return
             val open = previewOpen.value ?: sample.openByDefault
+            // The assistant answers to fixed gestures, not the configurable ones: up shrinks it to the working pill.
+            if (sample == PreviewSample.ASSISTANT) {
+                previewOpen.value = when (gesture) {
+                    Gesture.SWIPE_UP -> false
+                    Gesture.SWIPE_DOWN -> true
+                    Gesture.TAP -> !open
+                    else -> open
+                }
+                return
+            }
             previewOpen.value = when (settings.settings.value.actionFor(gesture)) {
                 GestureAction.TOGGLE_EXPAND -> !open
                 GestureAction.EXPAND -> true

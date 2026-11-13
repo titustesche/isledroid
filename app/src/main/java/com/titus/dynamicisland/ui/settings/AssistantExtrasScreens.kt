@@ -45,11 +45,9 @@ fun NetworkScreen(s: SettingsHandle, onBack: () -> Unit) {
     val v = s.value
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
-    // Index being edited, or -1 for a new one. The key resets the form's fields.
-    var editDevice by remember { mutableIntStateOf(-1) }
-    var deviceForm by remember { mutableIntStateOf(0) }
-    var editAction by remember { mutableIntStateOf(-1) }
-    var actionForm by remember { mutableIntStateOf(0) }
+    // Device in the dialog: its index, -1 for a new one, null when the dialog is closed.
+    var deviceDialog by remember { mutableStateOf<Int?>(null) }
+    var actionDialog by remember { mutableStateOf<Int?>(null) }
 
     fun test(what: String, block: () -> String) {
         status = "$what …"
@@ -65,29 +63,17 @@ fun NetworkScreen(s: SettingsHandle, onBack: () -> Unit) {
         note("\"Wake my PC\": the assistant sends a magic packet. The device needs Wake-on-LAN switched on (BIOS and network card) and the phone must be on the same network.")
         v.wolDevices.forEachIndexed { index, d ->
             item("wol-$index-${d.name}") {
-                SettingRow(d.name, "${d.mac} → ${d.broadcast}:${d.port}", onClick = { editDevice = index; deviceForm++ }) {
+                SettingRow(d.name, "${d.mac} → ${d.broadcast}" + (if (d.port != 9) ":${d.port}" else ""), onClick = { deviceDialog = index }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TermButton("wake") { test("Waking ${d.name}") { NetworkTools.wake(d, v.wolRepeats); "Sent to ${d.name}." } }
                         TermButton("remove", danger = true) {
                             s.update { it.copy(wolDevices = it.wolDevices.filterIndexed { i, _ -> i != index }) }
-                            if (editDevice == index) { editDevice = -1; deviceForm++ }
                         }
                     }
                 }
             }
         }
-        item("wol-form") {
-            key(deviceForm) {
-                val editing = v.wolDevices.getOrNull(editDevice)
-                DeviceForm(editing) { d ->
-                    s.update { st ->
-                        st.copy(wolDevices = if (editing != null) st.wolDevices.mapIndexed { i, old -> if (i == editDevice) d else old } else st.wolDevices + d)
-                    }
-                    editDevice = -1
-                    deviceForm++
-                }
-            }
-        }
+        item("wol-add") { TermButton("[ add device ]", Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)) { deviceDialog = -1 } }
         item { IntSliderSetting("Packets per wake", v.wolRepeats, 1..10, "") { n -> s.update { it.copy(wolRepeats = n) } } }
 
         header("Web actions")
@@ -99,57 +85,72 @@ fun NetworkScreen(s: SettingsHandle, onBack: () -> Unit) {
         v.httpActions.forEachIndexed { index, a ->
             item("http-$index-${a.name}") {
                 SettingRow(a.name, "${a.method} ${a.url}" + a.description.takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty(),
-                    onClick = { editAction = index; actionForm++ }) {
+                    onClick = { actionDialog = index }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TermButton("run") {
                             test("Running ${a.name}") { NetworkTools.request(a, v.httpTimeoutSec).let { (code, body) -> "HTTP $code ${body.take(120)}" } }
                         }
                         TermButton("remove", danger = true) {
                             s.update { it.copy(httpActions = it.httpActions.filterIndexed { i, _ -> i != index }) }
-                            if (editAction == index) { editAction = -1; actionForm++ }
                         }
                     }
                 }
             }
         }
-        item("http-form") {
-            key(actionForm) {
-                val editing = v.httpActions.getOrNull(editAction)
-                ActionForm(editing) { a ->
-                    s.update { st ->
-                        st.copy(httpActions = if (editing != null) st.httpActions.mapIndexed { i, old -> if (i == editAction) a else old } else st.httpActions + a)
-                    }
-                    editAction = -1
-                    actionForm++
-                }
-            }
-        }
+        item("http-add") { TermButton("[ add web action ]", Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)) { actionDialog = -1 } }
         item { IntSliderSetting("Give up after", v.httpTimeoutSec, 2..30, "s") { n -> s.update { it.copy(httpTimeoutSec = n) } } }
         status?.let { msg -> note(msg) }
         note("Names are what you say. Headers are one \"Name: value\" per line, e.g. \"Authorization: Bearer …\" for Home Assistant. Stored on this phone; the assistant sees names and descriptions only.")
     }
+
+    deviceDialog?.let { index ->
+        val editing = v.wolDevices.getOrNull(index)
+        DeviceDialog(editing, onDismiss = { deviceDialog = null }) { d ->
+            s.update { st ->
+                st.copy(wolDevices = if (editing != null) st.wolDevices.mapIndexed { i, old -> if (i == index) d else old } else st.wolDevices + d)
+            }
+            deviceDialog = null
+        }
+    }
+    actionDialog?.let { index ->
+        val editing = v.httpActions.getOrNull(index)
+        ActionDialog(editing, onDismiss = { actionDialog = null }) { a ->
+            s.update { st ->
+                st.copy(httpActions = if (editing != null) st.httpActions.mapIndexed { i, old -> if (i == index) a else old } else st.httpActions + a)
+            }
+            actionDialog = null
+        }
+    }
 }
 
 @Composable
-private fun DeviceForm(editing: WolDevice?, onSave: (WolDevice) -> Unit) {
+private fun DeviceDialog(editing: WolDevice?, onDismiss: () -> Unit, onSave: (WolDevice) -> Unit) {
     var name by remember { mutableStateOf(editing?.name.orEmpty()) }
     var mac by remember { mutableStateOf(editing?.mac.orEmpty()) }
     var broadcast by remember { mutableStateOf(editing?.broadcast ?: "255.255.255.255") }
     var port by remember { mutableStateOf((editing?.port ?: 9).toString()) }
     val device = WolDevice(name.trim(), mac.trim(), broadcast.trim(), port.toIntOrNull() ?: 9)
     val valid = device.name.isNotEmpty() && device.macBytes() != null && device.port in 1..65535
-    TermCard(if (editing != null) "Edit ${editing.name}" else "Add a device") {
+    TermDialog(
+        if (editing != null) "Edit ${editing.name}" else "Add a device",
+        onDismiss,
+        buttons = {
+            TermButton("cancel", onClick = onDismiss)
+            TermButton(if (editing != null) "save" else "add", filled = valid) { if (valid) onSave(device) }
+        },
+    ) {
         TermField("Name", name, { name = it }, placeholder = "PC")
         TermField("MAC address", mac, { mac = it }, placeholder = "AA:BB:CC:DD:EE:FF")
+        if (mac.isNotBlank() && device.macBytes() == null) {
+            Text("That isn't a MAC address.", fontSize = 13.sp, color = Term.Dim, modifier = Modifier.padding(horizontal = 20.dp))
+        }
         TermField("Broadcast address", broadcast, { broadcast = it }, placeholder = "255.255.255.255")
-        TermField("Port", port, { port = it }, placeholder = "9", keyboard = KeyboardType.Number)
-        if (mac.isNotBlank() && device.macBytes() == null) Text("That isn't a MAC address.", fontSize = 13.sp, color = Term.Dim)
-        TermButton(if (editing != null) "save" else "add", filled = valid) { if (valid) onSave(device) }
+        TermField("UDP port (9 almost always; 7 for some devices)", port, { port = it }, placeholder = "9", keyboard = KeyboardType.Number)
     }
 }
 
 @Composable
-private fun ActionForm(editing: HttpAction?, onSave: (HttpAction) -> Unit) {
+private fun ActionDialog(editing: HttpAction?, onDismiss: () -> Unit, onSave: (HttpAction) -> Unit) {
     var name by remember { mutableStateOf(editing?.name.orEmpty()) }
     var description by remember { mutableStateOf(editing?.description.orEmpty()) }
     var url by remember { mutableStateOf(editing?.url.orEmpty()) }
@@ -158,14 +159,20 @@ private fun ActionForm(editing: HttpAction?, onSave: (HttpAction) -> Unit) {
     var headers by remember { mutableStateOf(editing?.headers.orEmpty()) }
     val action = HttpAction(name.trim(), url.trim(), method, body, headers, description.trim())
     val valid = action.name.isNotEmpty() && (action.url.startsWith("http://") || action.url.startsWith("https://"))
-    TermCard(if (editing != null) "Edit ${editing.name}" else "Add a web action") {
+    TermDialog(
+        if (editing != null) "Edit ${editing.name}" else "Add a web action",
+        onDismiss,
+        buttons = {
+            TermButton("cancel", onClick = onDismiss)
+            TermButton(if (editing != null) "save" else "add", filled = valid) { if (valid) onSave(action) }
+        },
+    ) {
         TermField("Name", name, { name = it }, placeholder = "Living room lights on")
         TermField("What it does (for the assistant)", description, { description = it }, placeholder = "optional")
         TermField("URL", url, { url = it }, placeholder = "http://homeassistant.local:8123/api/…", keyboard = KeyboardType.Uri)
         ChoiceSetting("Method", HttpAction.METHODS, method, { it }) { method = it }
         TermField("Body", body, { body = it }, placeholder = "{\"entity_id\": \"light.living_room\"}")
         TermField("Headers", headers, { headers = it }, placeholder = "Authorization: Bearer …")
-        TermButton(if (editing != null) "save" else "add", filled = valid) { if (valid) onSave(action) }
     }
 }
 
