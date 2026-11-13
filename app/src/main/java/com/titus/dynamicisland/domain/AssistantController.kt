@@ -102,7 +102,7 @@ class AssistantController(
     private val confirmations = Confirmations()
     private val phoneTools = PhoneTools(context, system, media)
     private val commsTools = CommsTools(context, notifications, confirmations) { settings.settings.value }
-    private val networkTools = NetworkTools { settings.settings.value }
+    private val networkTools = NetworkTools(context) { settings.settings.value }
     private val infoTools = InfoTools(context) { settings.settings.value.navigationApp }
     private val memoryTools = MemoryTools(context, memory, map)
     private val deviceTools = DeviceTools(context, confirmations) { settings.settings.value }

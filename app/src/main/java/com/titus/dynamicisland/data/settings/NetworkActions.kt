@@ -22,7 +22,8 @@ data class WolDevice(
 
 /**
  * A web request the assistant can fire by name: a Home Assistant service or webhook, IFTTT, a smart
- * plug's local API, a router … [headers] is one "Name: value" per line.
+ * plug's local API, a router … [headers] is one "Name: value" per line. Any other scheme
+ * ("kdeconnect://runcommand/…", "intent:…") is an app link: opened on the phone, method, body and headers unused.
  */
 data class HttpAction(
     val name: String,
@@ -33,6 +34,13 @@ data class HttpAction(
     /** Short note for the assistant: what it does, when to use it ("turns the living room lights on"). */
     val description: String = "",
 ) {
+    /** An http(s) request; otherwise a link an app on the phone opens. */
+    val isWeb: Boolean get() = url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
+
+    /** http(s) with a host, or any other "scheme:something". */
+    val hasValidUrl: Boolean
+        get() = if (isWeb) url.substringAfter("://").isNotBlank() else SCHEME.matches(url)
+
     fun headerPairs(): List<Pair<String, String>> = headers.lines().mapNotNull { line ->
         val i = line.indexOf(':')
         if (i <= 0) null else line.substring(0, i).trim() to line.substring(i + 1).trim()
@@ -40,6 +48,7 @@ data class HttpAction(
 
     companion object {
         val METHODS = listOf("GET", "POST", "PUT", "DELETE")
+        private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*:.+")
     }
 }
 
