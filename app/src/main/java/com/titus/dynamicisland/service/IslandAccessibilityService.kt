@@ -122,6 +122,7 @@ class IslandAccessibilityService : AccessibilityService() {
 
     private var lastDebugAsk = "" to 0L
     private var lastDebugPopups = "" to 0L
+    @Volatile private var lastBrowse = "nothing browsed yet\n"
 
     override fun dump(fd: FileDescriptor?, writer: PrintWriter, args: Array<out String>?) {
         // Debug builds: `dumpsys activity service …IslandAccessibilityService ask <question>` runs a
@@ -141,6 +142,17 @@ class IslandAccessibilityService : AccessibilityService() {
         if (args?.firstOrNull() == "trace") {
             // Any build: why the assistant closed or kept listening lately (it's only on this phone anyway).
             writer.print(appGraph.assistant.traceText().ifEmpty { "(nothing yet)\n" })
+            return
+        }
+        if (debuggable && args?.firstOrNull() == "browse") {
+            // `… browse <package> [depth]` lists a player's media library the way Android Auto sees it.
+            // Takes longer than dumpsys waits: runs in the background, `… browse result` prints it.
+            val pkg = args.getOrNull(1) ?: run { writer.println("usage: browse <package> [depth] | browse result"); return }
+            if (pkg == "result") { writer.print(lastBrowse); return }
+            lastBrowse = "running…\n"
+            val depth = args.getOrNull(2)?.toIntOrNull() ?: 2
+            Thread { lastBrowse = com.titus.dynamicisland.data.media.LibraryBrowser(this).tree(pkg, depth) }.start()
+            writer.println("browsing $pkg")
             return
         }
         if (debuggable && args?.firstOrNull() == "open") {
