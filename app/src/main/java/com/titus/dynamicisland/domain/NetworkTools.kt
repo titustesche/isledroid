@@ -8,6 +8,9 @@ import com.titus.dynamicisland.data.assistant.ToolParam
 import com.titus.dynamicisland.data.settings.HttpAction
 import com.titus.dynamicisland.data.settings.IslandSettings
 import com.titus.dynamicisland.data.settings.WolDevice
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.HttpURLConnection
@@ -18,7 +21,7 @@ import java.net.URL
  * Things on the network the user set up in Assistant → Devices & actions: computers to wake
  * (Wake-on-LAN) and web requests to fire by name (Home Assistant, webhooks, smart plugs).
  */
-class NetworkTools(private val settings: () -> IslandSettings) {
+class NetworkTools(private val context: Context, private val settings: () -> IslandSettings) {
 
     fun all(): List<AssistantTool> = buildList {
         val s = settings()
@@ -37,18 +40,24 @@ class NetworkTools(private val settings: () -> IslandSettings) {
             ?: throw ToolException("No device called \"${i.string("name")}\".")
         wake(d, settings().wolRepeats)
         i.show(AssistantCard("wol-${d.name}", CardIcon.POWER, d.name, "Wake-up sent", label = "Wake-up sent"))
-        "Magic packet sent to ${d.name}. It takes the device a moment to boot; there's no confirmation that it woke."
+        "Done: ${d.name} is waking up. $NO_FEEDBACK"
     }
 
     private fun runAction(actions: List<HttpAction>) = assistantTool(
         "run_action",
-        "Fire one of the user's web actions (smart home, webhooks …). Use it whenever the request matches one. Actions:\n" +
+        "Fire one of the user's actions (smart home, webhooks, links into apps such as KDE Connect commands). Use it whenever " +
+            "the request matches one. Actions:\n" +
             actions.joinToString("\n") { a -> "- ${a.name}" + a.description.takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty() },
         ToolParam("name", "string", "Which action.", enum = actions.map { it.name }),
         onMain = false,
     ) { i ->
         val a = actions.firstOrNull { it.name.equals(i.string("name"), ignoreCase = true) }
             ?: throw ToolException("No action called \"${i.string("name")}\".")
+        if (!a.isWeb) {
+            open(context, a)
+            i.show(AssistantCard("http-${a.name}", CardIcon.HOME, a.name, "Sent", label = "Action · sent"))
+            return@assistantTool "Done. $NO_FEEDBACK"
+        }
         val (code, reply) = request(a, settings().httpTimeoutSec)
         if (code !in 200..299) throw ToolException("\"${a.name}\" failed: HTTP $code ${reply.take(200)}")
         i.show(AssistantCard("http-${a.name}", CardIcon.HOME, a.name, "Done", label = "Home · done"))
@@ -56,6 +65,13 @@ class NetworkTools(private val settings: () -> IslandSettings) {
     }
 
     companion object {
+        /**
+         * The user set these up and knows they give nothing back: the model kept saying it "can't verify"
+         * the result, every time. It reports them as done, like a light switched in person.
+         */
+        private const val NO_FEEDBACK = "The user set this up themselves and knows it reports nothing back: confirm it as done " +
+            "in a word or two. Never mention verifying, checking, confirmation or that you can't see the result."
+
         /** Sends [repeats] magic packets: 6 × 0xFF, then the MAC 16 times. */
         fun wake(d: WolDevice, repeats: Int) {
             val mac = d.macBytes() ?: throw ToolException("${d.name}'s MAC address \"${d.mac}\" isn't valid.")
@@ -70,6 +86,15 @@ class NetworkTools(private val settings: () -> IslandSettings) {
                     }
                 }
             }.onFailure { throw ToolException("Couldn't send the packet: ${it.message}") }
+        }
+
+        /** Opens an app link ("kdeconnect://…", or "intent:…#Intent;…;end" for a specific app or action). */
+        fun open(context: Context, a: HttpAction) {
+            val intent = runCatching {
+                if (a.url.startsWith("intent:", ignoreCase = true)) Intent.parseUri(a.url, Intent.URI_INTENT_SCHEME)
+                else Intent(Intent.ACTION_VIEW, Uri.parse(a.url))
+            }.getOrElse { throw ToolException("\"${a.name}\" has a link Android can't read: ${it.message}") }
+            if (!context.startFromBackground(intent)) throw ToolException("Nothing on the phone opens \"${a.name}\"'s link (${a.url.substringBefore(':')}:).")
         }
 
         /** Returns the status code and (the start of) the reply. */
