@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.ui.unit.TextUnit
 import com.titus.dynamicisland.data.system.BluetoothKind
 import com.titus.dynamicisland.data.system.BluetoothDeviceInfo
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
@@ -353,6 +354,7 @@ fun onColor(background: Color): Color = if (background.luminance() > 0.45f) Colo
 
 fun bluetoothIcon(kind: BluetoothKind): ImageVector = when (kind) {
     BluetoothKind.HEADPHONES -> Icons.Rounded.Headphones
+    BluetoothKind.CAR -> Icons.Rounded.DirectionsCar
     BluetoothKind.WATCH -> Icons.Rounded.Watch
     BluetoothKind.OTHER -> Icons.Rounded.Bluetooth
 }

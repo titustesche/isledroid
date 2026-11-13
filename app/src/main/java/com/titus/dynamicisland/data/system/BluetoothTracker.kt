@@ -1,7 +1,7 @@
 package com.titus.dynamicisland.data.system
 
 /** What a Bluetooth device is, for its symbol. */
-enum class BluetoothKind { HEADPHONES, WATCH, OTHER }
+enum class BluetoothKind { HEADPHONES, CAR, WATCH, OTHER }
 
 /** A connected Bluetooth device; [battery] once it has reported one. */
 data class BluetoothDeviceInfo(val name: String, val kind: BluetoothKind, val battery: Int? = null)
