@@ -337,6 +337,14 @@ data class IslandSettings(
     val habitSplitWeekends: Boolean = true,
     /** At most this many fitting routines go along with a question. */
     val habitsInPrompt: Int = 3,
+    /** Alarms you set (in any clock app): "weekdays around 17:30 you set an alarm for 6:00". */
+    val habitsFromAlarms: Boolean = true,
+    /** What you start playing in a music app, by artist. */
+    val habitsFromMusic: Boolean = true,
+    /** Apps that never count as a routine (the clock you open to stop the alarm). */
+    val habitsIgnoredApps: Set<String> = DEFAULT_HABIT_IGNORED_APPS,
+    /** Routines dismissed with "ignore": never learned again. */
+    val habitsIgnored: Set<String> = emptySet(),
     /** Buildings stand up from the streets. */
     val mapBuildings3d: Boolean = true,
     /** How far roofs lean out (1 = like the design). */
@@ -385,6 +393,11 @@ data class IslandSettings(
     }
 
     companion object {
+        /** Clock apps: opened every morning to stop the alarm, which is no routine worth offering. */
+        val DEFAULT_HABIT_IGNORED_APPS = setOf(
+            "com.sec.android.app.clockpackage", "com.google.android.deskclock", "com.android.deskclock",
+            "com.oneplus.deskclock", "com.miui.clock",
+        )
         val DEFAULT_TOOLS = listOf(QuickTool.FLASHLIGHT, QuickTool.RINGER, QuickTool.DND, QuickTool.SCREENSHOT, QuickTool.CAMERA)
         val DEFAULT_GESTURES = mapOf(
             Gesture.TAP to GestureAction.EXPAND,

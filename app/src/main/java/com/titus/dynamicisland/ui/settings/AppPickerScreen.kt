@@ -38,7 +38,7 @@ import com.titus.dynamicisland.ui.island.MAX_TOOLS
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-enum class AppPickerTarget { HIDDEN, NOTIFICATIONS, PLAYERS, FAVORITES }
+enum class AppPickerTarget { HIDDEN, NOTIFICATIONS, PLAYERS, FAVORITES, HABITS }
 
 private data class AppRow(val pkg: String, val label: String, val icon: ImageBitmap?)
 
@@ -64,6 +64,7 @@ fun AppPickerScreen(target: AppPickerTarget, s: SettingsHandle, onBack: () -> Un
         AppPickerTarget.HIDDEN -> "Hide island in"
         AppPickerTarget.PLAYERS -> "Ignored players"
         AppPickerTarget.FAVORITES -> "Favourite apps"
+        AppPickerTarget.HABITS -> "Never a routine"
         AppPickerTarget.NOTIFICATIONS ->
             if (s.value.notificationFilterMode == AppFilterMode.ONLY_SELECTED) "Show pop-ups from" else "Block pop-ups from"
     }
@@ -98,6 +99,7 @@ private fun AppPickerTarget.selection(s: IslandSettings): Set<String> = when (th
     AppPickerTarget.NOTIFICATIONS -> s.notificationApps
     AppPickerTarget.PLAYERS -> s.blockedPlayers
     AppPickerTarget.FAVORITES -> s.favoriteApps
+    AppPickerTarget.HABITS -> s.habitsIgnoredApps
 }
 
 private fun AppPickerTarget.toggle(s: IslandSettings, pkg: String): IslandSettings {
@@ -106,6 +108,7 @@ private fun AppPickerTarget.toggle(s: IslandSettings, pkg: String): IslandSettin
         AppPickerTarget.HIDDEN -> s.copy(hiddenApps = s.hiddenApps.flip())
         AppPickerTarget.NOTIFICATIONS -> s.copy(notificationApps = s.notificationApps.flip())
         AppPickerTarget.PLAYERS -> s.copy(blockedPlayers = s.blockedPlayers.flip())
+        AppPickerTarget.HABITS -> s.copy(habitsIgnoredApps = s.habitsIgnoredApps.flip())
         // The tools panel has room for one row.
         AppPickerTarget.FAVORITES ->
             if (pkg !in s.favoriteApps && s.favoriteApps.size >= MAX_TOOLS) s else s.copy(favoriteApps = s.favoriteApps.flip())

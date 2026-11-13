@@ -27,7 +27,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.titus.dynamicisland.appGraph
 import com.titus.dynamicisland.data.assistant.ToolException
-import com.titus.dynamicisland.data.assistant.Habits
 import com.titus.dynamicisland.data.settings.HttpAction
 import com.titus.dynamicisland.data.settings.WolDevice
 import com.titus.dynamicisland.domain.NetworkTools
@@ -190,12 +189,12 @@ private fun ActionDialog(editing: HttpAction?, onDismiss: () -> Unit, onSave: (H
 
 /** What the assistant learned about the user's routines, and how it learns. */
 @Composable
-fun HabitsScreen(s: SettingsHandle, onBack: () -> Unit) {
+fun HabitsScreen(s: SettingsHandle, onBack: () -> Unit, onPickApps: (AppPickerTarget) -> Unit) {
     val v = s.value
     val graph = LocalContext.current.appGraph
     val events by graph.habitLog.events.collectAsStateWithLifecycle()
-    val routines = remember(events, v.habitWindowMin, v.habitMinDays, v.habitLookbackDays, v.habitSplitWeekends) {
-        Habits.all(events, System.currentTimeMillis(), graph.habits.rules(v))
+    val routines = remember(events, v.habitWindowMin, v.habitMinDays, v.habitLookbackDays, v.habitSplitWeekends, v.habitsIgnored, v.habitsIgnoredApps) {
+        graph.habits.all(events, v)
     }
     SettingsScaffold("Habits", onBack, v, preview = PreviewSample.ASSISTANT) {
         item {
@@ -217,8 +216,21 @@ fun HabitsScreen(s: SettingsHandle, onBack: () -> Unit) {
                     summary = "A route you start in Google Maps or Waze yourself")
             }
             item {
+                SwitchSetting("Alarms you set", v.habitsFromAlarms, { on -> s.update { it.copy(habitsFromAlarms = on) } },
+                    summary = "In any clock app, with the time they ring: \"weekdays around 17:30, an alarm for 6:00 the next morning\"")
+            }
+            item {
+                SwitchSetting("Music you start", v.habitsFromMusic, { on -> s.update { it.copy(habitsFromMusic = on) } },
+                    summary = "The artist you put on after a break, in any player")
+            }
+            item {
                 SwitchSetting("Apps you open", v.habitsFromApps, { on -> s.update { it.copy(habitsFromApps = on) } },
                     summary = "Only ones you open at a steady time; apps used all day are ignored")
+            }
+            item {
+                NavRow("Never a routine", countLabel(v.habitsIgnoredApps.size) + " · the clock you open to stop the alarm, …", null) {
+                    onPickApps(AppPickerTarget.HABITS)
+                }
             }
             header("What counts as a routine")
             item { IntSliderSetting("Around the same time, give or take", v.habitWindowMin, 10..120, "min") { n -> s.update { it.copy(habitWindowMin = (n / 5) * 5) } } }
@@ -236,12 +248,25 @@ fun HabitsScreen(s: SettingsHandle, onBack: () -> Unit) {
                 val days = when (h.weekend) { true -> "Weekends"; false -> "Weekdays"; null -> "Most days" }
                 SettingRow(h.label.replaceFirstChar { it.uppercase() }, "$days around ${h.time} · ${h.days} days") {
                     TermButton("forget") { graph.habitLog.forget(h.key) }
+                    // Forgotten it comes back if you keep doing it; ignored it never does.
+                    TermButton("ignore", danger = true) {
+                        s.update { it.copy(habitsIgnored = it.habitsIgnored + h.key) }
+                        graph.habitLog.forget(h.key)
+                    }
                 }
             }
         }
         if (events.isNotEmpty()) {
             item { TermButton("[ forget everything ]", Modifier.padding(start = 16.dp, top = 16.dp), danger = true) { graph.habitLog.clear() } }
         }
+        if (v.habitsIgnored.isNotEmpty()) {
+            item {
+                SettingRow("Ignored routines", "${v.habitsIgnored.size} never learned again") {
+                    TermButton("allow again") { s.update { it.copy(habitsIgnored = emptySet()) } }
+                }
+            }
+        }
+        note("\"forget\" clears what was noted, so it comes back if you keep doing it; \"ignore\" never learns it again.")
         note("Stored only on this phone. The routines that fit the moment go to your AI provider with a question.")
     }
 }
