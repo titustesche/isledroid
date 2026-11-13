@@ -77,6 +77,13 @@ object Routes {
     const val MEMORY = "assistant/memory"
     const val NETWORK = "assistant/devices"
     const val HABITS = "assistant/habits"
+    const val ASSISTANT_AI = "assistant/ai"
+    const val ASSISTANT_VOICE = "assistant/voice"
+    const val ASSISTANT_SCREEN = "assistant/screen"
+    const val ASSISTANT_APPS = "assistant/apps"
+    const val ASSISTANT_MESSAGES = "assistant/messages"
+    const val ASSISTANT_CONVERSATION = "assistant/conversation"
+    const val ASSISTANT_LOOK = "assistant/look"
     const val NAVIGATION = "navigation"
     const val APPS = "apps/{target}"
     fun apps(target: AppPickerTarget) = "apps/${target.name}"
@@ -113,6 +120,13 @@ fun SettingsApp() {
             composable(Routes.MEMORY) { MemoryScreen(handle, back) }
             composable(Routes.NETWORK) { NetworkScreen(handle, back) }
             composable(Routes.HABITS) { HabitsScreen(handle, back) }
+            composable(Routes.ASSISTANT_AI) { AssistantAiScreen(handle, back) }
+            composable(Routes.ASSISTANT_VOICE) { AssistantVoiceScreen(handle, back) }
+            composable(Routes.ASSISTANT_SCREEN) { ReadScreenScreen(handle, back) }
+            composable(Routes.ASSISTANT_APPS) { UseAppsScreen(handle, back) }
+            composable(Routes.ASSISTANT_MESSAGES) { MessagesScreen(handle, back) }
+            composable(Routes.ASSISTANT_CONVERSATION) { ConversationScreen(handle, back) }
+            composable(Routes.ASSISTANT_LOOK) { AssistantLookScreen(handle, back) }
             composable(Routes.NAVIGATION) { NavigationScreen(handle, back) }
             composable(Routes.APPS) { entry ->
                 val target = AppPickerTarget.valueOf(entry.arguments?.getString("target") ?: AppPickerTarget.HIDDEN.name)
@@ -220,7 +234,14 @@ private val PAGES: Map<String, Pair<String?, String>> = mapOf(
     Routes.BATTERIES to (Routes.EVENTS to "batteries"),
     Routes.TOOLS to (Routes.HOME to "quick-tools"),
     Routes.ASSISTANT to (Routes.HOME to "assistant"),
-    Routes.ASSISTANT_TOOLS to (Routes.ASSISTANT to "tools"),
+    Routes.ASSISTANT_TOOLS to (Routes.ASSISTANT to "permissions"),
+    Routes.ASSISTANT_AI to (Routes.ASSISTANT to "ai"),
+    Routes.ASSISTANT_VOICE to (Routes.ASSISTANT to "voice"),
+    Routes.ASSISTANT_SCREEN to (Routes.ASSISTANT to "screen"),
+    Routes.ASSISTANT_APPS to (Routes.ASSISTANT to "apps"),
+    Routes.ASSISTANT_MESSAGES to (Routes.ASSISTANT to "messages"),
+    Routes.ASSISTANT_CONVERSATION to (Routes.ASSISTANT to "conversation"),
+    Routes.ASSISTANT_LOOK to (Routes.ASSISTANT to "look"),
     Routes.MEMORY to (Routes.ASSISTANT to "memory"),
     Routes.NETWORK to (Routes.ASSISTANT to "devices"),
     Routes.HABITS to (Routes.ASSISTANT to "habits"),
