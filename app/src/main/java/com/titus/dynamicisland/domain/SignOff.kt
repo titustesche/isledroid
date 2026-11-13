@@ -43,5 +43,14 @@ object SignOff {
             .map { if (it.isLetter()) it else ' ' }.joinToString("")
             .split(' ').filter { it.isNotBlank() }.joinToString(" ")
 
+    /**
+     * The answer's last words are a question: "…?", "…?“", "…? 😏", "…?!". A question earlier on, followed by
+     * a statement ("Again? Route's running."), is talk, not a question to the user.
+     */
+    fun endsWithQuestion(text: String): Boolean {
+        val t = text.trimEnd { !it.isLetterOrDigit() && it !in ".!?…" }
+        return t.takeLastWhile { it in ".!?…" }.contains('?')
+    }
+
     private const val MAX_WORDS = 8
 }
