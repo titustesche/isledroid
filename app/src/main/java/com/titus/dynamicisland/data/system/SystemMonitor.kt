@@ -362,7 +362,10 @@ class SystemMonitor(private val context: Context) {
 
     @Suppress("MissingPermission")
     private fun kindOf(device: BluetoothDevice): BluetoothKind = when (runCatching { device.bluetoothClass?.majorDeviceClass }.getOrNull()) {
-        BluetoothClass.Device.Major.AUDIO_VIDEO -> BluetoothKind.HEADPHONES
+        BluetoothClass.Device.Major.AUDIO_VIDEO -> when (runCatching { device.bluetoothClass?.deviceClass }.getOrNull()) {
+            BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO, BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE -> BluetoothKind.CAR
+            else -> BluetoothKind.HEADPHONES
+        }
         BluetoothClass.Device.Major.WEARABLE -> BluetoothKind.WATCH
         else -> BluetoothKind.OTHER
     }
