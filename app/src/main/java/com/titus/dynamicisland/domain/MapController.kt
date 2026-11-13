@@ -30,8 +30,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-/** Where the island's map leads: a remembered place, like the car. */
-data class MapTarget(val label: String, val point: GeoPoint)
+/** Where the island's map leads: a remembered place, like the car; [memoryId] is the note it came from. */
+data class MapTarget(val label: String, val point: GeoPoint, val memoryId: String? = null)
 
 /**
  * The island's map: what it points to, whether it's open, and — only while there's a target —
@@ -58,8 +58,13 @@ class MapController(private val context: Context, private val scope: CoroutineSc
     /** Tiles covering the area around [position]. */
     val loadedTiles: StateFlow<List<MapTile>> = _tiles.asStateFlow()
 
-    /** Closes the map once you're within this many metres of the target; 0 = never. */
-    var arrivalRadiusM = 0
+    /** Within this many metres of the target counts as arrived. */
+    var arrivalRadiusM = 15
+    /** Arriving closes the map. */
+    var closeOnArrival = true
+    /** Called once when you arrive at the target (on the main thread). */
+    var onArrival: ((MapTarget) -> Unit)? = null
+    private var arrived = false
     private var awayFromTarget = false
     private var loadJob: Job? = null
     private var tracking = false
@@ -70,6 +75,7 @@ class MapController(private val context: Context, private val scope: CoroutineSc
             _target.value = target
             _open.value = open
             awayFromTarget = false
+            arrived = false
             startTracking()
         }
     }
@@ -100,11 +106,16 @@ class MapController(private val context: Context, private val scope: CoroutineSc
         declination = GeomagneticField(loc.latitude.toFloat(), loc.longitude.toFloat(), loc.altitude.toFloat(), loc.time).declination
         loadTilesAround(p)
         val t = _target.value ?: return
-        if (arrivalRadiusM <= 0) return
+        if (arrivalRadiusM <= 0 || arrived) return
         // Arriving needs leaving first: opened right at the spot, the map stays until you've walked away and back.
         val d = Geo.distance(p, t.point)
         if (d > arrivalRadiusM * 2) awayFromTarget = true
-        if (awayFromTarget && d < arrivalRadiusM) close()
+        if (awayFromTarget && d < arrivalRadiusM) {
+            arrived = true
+            Log.i(TAG, "Arrived at ${t.label}")
+            onArrival?.invoke(t)
+            if (closeOnArrival) close()
+        }
     }
 
     private var declination = 0f

@@ -543,7 +543,11 @@ fun NavigationScreen(s: SettingsHandle, onBack: () -> Unit) {
             SwitchSetting("Close on arrival", v.mapCloseOnArrival, { on -> s.update { it.copy(mapCloseOnArrival = on) } },
                 summary = "The map goes away once you're there")
         }
-        if (v.mapCloseOnArrival) {
+        item {
+            SwitchSetting("Forget the note on arrival", v.mapForgetOnArrival, { on -> s.update { it.copy(mapForgetOnArrival = on) } },
+                summary = "Got to the parked car: the note that led you there is deleted")
+        }
+        if (v.mapCloseOnArrival || v.mapForgetOnArrival) {
             item { IntSliderSetting("Arrived within", v.mapArrivalRadiusM, 5..60, "m") { n -> s.update { it.copy(mapArrivalRadiusM = n) } } }
         }
         note("Streets and buildings only, from OpenStreetMap (© OpenStreetMap contributors, via OpenFreeMap). Tiles are kept on the phone for a month.")

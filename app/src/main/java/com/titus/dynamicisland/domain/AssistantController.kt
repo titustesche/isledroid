@@ -104,7 +104,7 @@ class AssistantController(
     private val commsTools = CommsTools(context, notifications, confirmations) { settings.settings.value }
     private val networkTools = NetworkTools(context) { settings.settings.value }
     private val infoTools = InfoTools(context) { settings.settings.value.navigationApp }
-    private val memoryTools = MemoryTools(context, memory, map)
+    private val memoryTools = MemoryTools(context, memory, map) { settings.settings.value.mapForgetOnArrival }
     private val deviceTools = DeviceTools(context, confirmations) { settings.settings.value }
     private fun allTools() = phoneTools.all() + commsTools.all() + infoTools.all() + deviceTools.all() + networkTools.all() +
         (if (settings.settings.value.assistantMemory) memoryTools.all() else emptyList()) +
