@@ -76,7 +76,7 @@ class PhoneTools(
         "Timer started: ${duration(seconds)}."
     }
 
-    private val setAlarm = tool(
+    private val setAlarm = assistantTool(
         "set_alarm",
         "Set an alarm in the phone's clock app (24-hour time).",
         ToolParam("hour", "integer", "Hour, 0 to 23.", minimum = 0, maximum = 23),
@@ -87,6 +87,8 @@ class PhoneTools(
             "For a repeating alarm: comma-separated English weekday names, e.g. \"monday,tuesday,friday\". Omit for a one-time alarm.",
             required = false,
         ),
+        // It waits for the clock app to save; not on the main thread.
+        onMain = false,
     ) { i ->
         val hour = i.int("hour")
         val minute = i.int("minute")
@@ -112,8 +114,39 @@ class PhoneTools(
                 action = CardAction.Launch(Intent(AlarmClock.ACTION_SHOW_ALARMS)),
             ),
         )
-        "Alarm set for %02d:%02d%s.".format(Locale.ROOT, hour, minute, if (days.isNullOrEmpty()) "" else ", repeating")
+        val time = "%02d:%02d".format(Locale.ROOT, hour, minute) + if (days.isNullOrEmpty()) "" else ", repeating"
+        when (alarmOutcome(hour, minute, clockPackage())) {
+            AlarmOutcome.SAVED -> "Alarm set for $time (the clock app confirms it)."
+            AlarmOutcome.EDITOR_OPEN -> "The clock app opened its alarm screen for $time instead of saving it silently. It's " +
+                "set once the user taps save there. Tell them that in a few words; it is not a failure, don't call it one, and " +
+                "don't offer to set it again."
+            AlarmOutcome.UNKNOWN -> "Alarm set for $time. (An earlier alarm rings first, so the phone can't show this one as " +
+                "the next; it's in the clock app all the same. Report it as set.)"
+        }
     }
+
+    private enum class AlarmOutcome { SAVED, EDITOR_OPEN, UNKNOWN }
+
+    /**
+     * Whether the clock saved the alarm: Android names only the next alarm, so it's confirmed when that one is
+     * ours. Not ours while the clock app is in front means its editor came up (some ignore "skip the UI").
+     */
+    private fun alarmOutcome(hour: Int, minute: Int, clock: String?): AlarmOutcome {
+        val alarms = context.getSystemService(android.app.AlarmManager::class.java)
+        fun isOurs() = alarms.nextAlarmClock?.triggerTime?.let { t ->
+            Calendar.getInstance().apply { timeInMillis = t }.let { it.get(Calendar.HOUR_OF_DAY) == hour && it.get(Calendar.MINUTE) == minute }
+        } == true
+        repeat(ALARM_CHECKS) {
+            if (isOurs()) return AlarmOutcome.SAVED
+            Thread.sleep(ALARM_CHECK_MS)
+        }
+        val front = com.titus.dynamicisland.service.ScreenReader.foregroundPackage()
+        return if (clock != null && front == clock) AlarmOutcome.EDITOR_OPEN else AlarmOutcome.UNKNOWN
+    }
+
+    private fun clockPackage(): String? = context.packageManager
+        .resolveActivity(Intent(AlarmClock.ACTION_SET_ALARM), android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+        ?.activityInfo?.packageName
 
     private fun clockTime(hour: Int, minute: Int): String {
         val c = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute) }
@@ -295,6 +328,16 @@ class PhoneTools(
         }
         val pkg = pickPlayer(i.optString("app"))
         val label = appLabel(pkg)
+        // Apple Music answers a search with its catalog's most popular playlist of that name, never the user's own,
+        // and lets nobody but Android Auto into the library. Their own playlists are played from the app itself.
+        if (pkg == APPLE_MUSIC && type == "playlist") {
+            throw ToolException(
+                "Apple Music would play the most popular public playlist called \"$name\", not the user's own. Play it from " +
+                    "the app's library instead: open_app Apple Music, then Mediathek/Library → Playlists → \"$name\" → the " +
+                    "play or shuffle button. If you can't use the phone's apps, tell the user in a few words. Only if they " +
+                    "clearly want the public playlist, call play_music again with type any.",
+            )
+        }
         // After the answer, so the music doesn't play over it.
         i.atEnd {
             val before = media.media.value
@@ -398,6 +441,10 @@ class PhoneTools(
             "Dynamic Island has no Do Not Disturb access. It can be granted in Android settings under \"Do Not Disturb access\"."
 
         const val SEARCH_FALLBACK_MS = 4_000L
+        const val APPLE_MUSIC = "com.apple.android.music"
+        // The clock app saves within a second or so; ~2.4 s covers a slow one.
+        const val ALARM_CHECKS = 8
+        const val ALARM_CHECK_MS = 300L
 
         /** MediaStore focus types (the platform constants, some deprecated, have these values). */
         val PLAY_FOCUS = linkedMapOf(
