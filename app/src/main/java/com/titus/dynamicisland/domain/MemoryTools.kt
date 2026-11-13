@@ -22,6 +22,9 @@ class MemoryTools(
 ) {
     fun all(): List<AssistantTool> = listOf(remember, recall, forget, showOnMap)
 
+    /** Deleted in this app session, by id, so a mistaken forget can be undone exactly. */
+    private val deleted = java.util.concurrent.ConcurrentHashMap<String, Memory>()
+
     private fun tool(name: String, description: String, vararg params: ToolParam, run: (ToolInput) -> String) =
         assistantTool(name, description, *params, run = run)
 
@@ -30,9 +33,22 @@ class MemoryTools(
         "Store a note to recall later: facts the user tells you to keep (\"my locker is 214\", \"the car is on level three\"). " +
             "With at_current_location the phone's precise position is stored with it: use that for \"remember where I parked\" " +
             "and similar, phrased like \"Car parked\" (add details the user gave, e.g. the level).",
-        ToolParam("text", "string", "The note, short and self-explanatory, in the user's language."),
+        ToolParam("text", "string", "The note, short and self-explanatory, in the user's language. Not needed with restore_id.", required = false),
         ToolParam("at_current_location", "boolean", "Also store where the phone is right now.", required = false),
+        ToolParam(
+            "restore_id", "string",
+            "To undo a forget you did by mistake: the deleted note's id. It comes back exactly as it was (text, date, place); " +
+                "text is ignored then.",
+            required = false,
+        ),
     ) { i ->
+        i.optString("restore_id")?.let { id ->
+            val m = deleted[id] ?: throw ToolException("No recently deleted note with that id.")
+            memory.restore(m)
+            deleted.remove(id)
+            i.show(card(m).copy(subtitle = "Restored", label = "Note restored"))
+            return@tool "Restored \"${m.text}\"."
+        }
         val text = i.string("text")
         val place = if (i.optBool("at_current_location") == true) {
             if (!Geo.hasAny(context)) {
@@ -61,7 +77,10 @@ class MemoryTools(
         "Delete a stored note by its id, e.g. once the user picked the car up or says it's outdated.",
         ToolParam("id", "string", "The note's id."),
     ) { i ->
-        if (memory.remove(i.string("id"))) "Deleted." else throw ToolException("No note with that id.")
+        val m = memory.find(i.string("id")) ?: throw ToolException("No note with that id.")
+        memory.remove(m.id)
+        deleted[m.id] = m
+        "Deleted \"${m.text}\" (id ${m.id}). If that was a mistake, remember with restore_id brings it back as it was."
     }
 
     private val showOnMap = tool(

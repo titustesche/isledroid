@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import com.titus.dynamicisland.data.settings.ActionStyle
 import com.titus.dynamicisland.data.settings.AssistantBackendType
 import com.titus.dynamicisland.data.settings.ControlConfirm
+import com.titus.dynamicisland.data.settings.FollowUpLevel
 import com.titus.dynamicisland.data.settings.IslandSettings
 import com.titus.dynamicisland.data.settings.WorkIndicator
 import com.titus.dynamicisland.domain.PreviewSample
@@ -153,8 +154,59 @@ fun ConversationScreen(s: SettingsHandle, onBack: () -> Unit) {
                 summary = "Stops listening when an answer doesn't end with a question for you")
         }
         item {
+            SwitchSetting("Any answer can close it", v.assistantEndAfterAnswer, { on -> s.update { it.copy(assistantEndAfterAnswer = on) } },
+                summary = if (v.assistantEndAfterAnswer) "Facts and chat close too, unless it asks something back"
+                else "Only finished tasks close it; facts and chat keep listening", enabled = v.assistantSelfEnd)
+        }
+        if (!v.assistantEndAfterAnswer) item {
+            SwitchSetting("Closes after a finished task", v.assistantEndAfterTask, { on -> s.update { it.copy(assistantEndAfterTask = on) } },
+                summary = "A timer set or a route started ends it, unless the answer asks something", enabled = v.assistantSelfEnd)
+        }
+        item {
+            IntSliderSetting("Waits for your reply", v.assistantReplyWaitS, 3..30, "s") { n -> s.update { it.copy(assistantReplyWaitS = n) } }
+        }
+        note("After it asked you something, silence this long still counts as thinking, not leaving.")
+        item {
+            SegmentedSetting("Offers a next step", FollowUpLevel.entries, v.assistantFollowUps, { it.label }) { l ->
+                s.update { it.copy(assistantFollowUps = l) }
+            }
+        }
+        note("\"Route's running. Music?\" A preference you tell it (\"in the car, always play X\") is remembered and used instead of asking.")
+        item {
             SwitchSetting("\"Danke\" closes it", v.assistantEndOnThanks, { on -> s.update { it.copy(assistantEndOnThanks = on) } },
                 summary = "\"Danke\", \"das war's\", \"thanks, that's it\". \"Danke, kannst du noch …\" doesn't", enabled = v.assistantSelfEnd)
+        }
+        header("When you open it")
+        item {
+            SwitchSetting("Speaks first", v.openerEnabled, { on -> s.update { it.copy(openerEnabled = on) } },
+                summary = "Before you say anything it offers what fits the moment, or just greets you. Talk over it any time.")
+        }
+        if (v.openerEnabled) {
+            item {
+                SwitchSetting("Routines", v.openerRoutines, { on -> s.update { it.copy(openerRoutines = on) } },
+                    summary = "What you usually do around now (see Habits)")
+            }
+            item {
+                SwitchSetting("Situation", v.openerSituation, { on -> s.update { it.copy(openerSituation = on) } },
+                    summary = "Car or headphones connected, what's playing, a route running, battery")
+            }
+            item {
+                SwitchSetting("Calendar", v.openerCalendar, { on -> s.update { it.copy(openerCalendar = on) } },
+                    summary = "Events coming up soon")
+            }
+            if (v.openerCalendar) {
+                item { IntSliderSetting("Coming up means within", v.openerCalendarHours, 1..12, "h") { n -> s.update { it.copy(openerCalendarHours = n) } } }
+            }
+            item {
+                SwitchSetting("Messages", v.openerMessages, { on -> s.update { it.copy(openerMessages = on) } },
+                    summary = "Who wrote in the last hours (names and apps only)")
+            }
+            item {
+                SwitchSetting("Greets when nothing's up", v.openerGreets, { on -> s.update { it.copy(openerGreets = on) } },
+                    summary = if (v.openerGreets) "A few words of its own choosing" else "Stays quiet and just listens")
+            }
+            item { IntSliderSetting("Gives up after", v.openerMaxWaitS, 2..10, "s") { n -> s.update { it.copy(openerMaxWaitS = n) } } }
+            note("Only what's switched on here goes along, once per opening, as an extra request to your AI provider. If you start talking first, it keeps quiet.")
         }
         advanced(2, "pause before closing, how long an answer stays", advanced, { advanced = !advanced }) {
             item {

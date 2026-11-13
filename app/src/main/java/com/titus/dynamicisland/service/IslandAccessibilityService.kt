@@ -138,6 +138,21 @@ class IslandAccessibilityService : AccessibilityService() {
             writer.println("asking: $question")
             return
         }
+        if (args?.firstOrNull() == "trace") {
+            // Any build: why the assistant closed or kept listening lately (it's only on this phone anyway).
+            writer.print(appGraph.assistant.traceText().ifEmpty { "(nothing yet)\n" })
+            return
+        }
+        if (debuggable && args?.firstOrNull() == "open") {
+            // `… open` runs the opening turn as if the assistant had just been called up (no microphone).
+            val now = android.os.SystemClock.elapsedRealtime()
+            if ("open" != lastDebugAsk.first || now - lastDebugAsk.second > 2_000) {
+                lastDebugAsk = "open" to now
+                android.os.Handler(mainLooper).post { appGraph.assistant.debugOpen() }
+            }
+            writer.println("opening")
+            return
+        }
         if (debuggable && args?.firstOrNull() == "type") {
             // `… type <n> <text>` types into element n of the last `screen` reading, the way type_text does.
             val n = args.getOrNull(1)?.toIntOrNull() ?: run { writer.println("usage: type <n> <text>"); return }
