@@ -1,5 +1,6 @@
 package com.titus.dynamicisland.ui.settings
 
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,19 +28,33 @@ private const val NEEDS_CLAUDE = "Needs Claude as the AI."
 fun ReadScreenScreen(s: SettingsHandle, onBack: () -> Unit) {
     val v = s.value
     var advanced by rememberSaveable { mutableStateOf(false) }
+    val shots = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
     SettingsScaffold("Read the screen", onBack, v, preview = PreviewSample.ASSISTANT) {
         item {
             SwitchSetting("Read the screen", v.assistantReadScreen, { on -> s.update { it.copy(assistantReadScreen = on) } },
                 summary = "When you ask about what you're looking at; never in the background, never passwords")
         }
-        advanced(1, "how much it reads", advanced, { advanced = !advanced }) {
+        if (shots) {
+            item {
+                SwitchSetting("Screenshots too", v.assistantScreenshots, { on -> s.update { it.copy(assistantScreenshots = on) } },
+                    summary = "For what apps show only as pictures: route time in Waze, photos, charts. Also used by \"Use apps for you\"")
+            }
+        }
+        advanced(if (shots) 2 else 1, if (shots) "how much it reads, screenshot size" else "how much it reads", advanced, { advanced = !advanced }) {
             item {
                 IntSliderSetting("Reads at most", v.screenReadMaxChars, 1000..15000, "characters") { n ->
                     s.update { it.copy(screenReadMaxChars = (n / 500) * 500) }
                 }
             }
+            if (shots) {
+                item {
+                    IntSliderSetting("Screenshot size", v.screenshotMaxEdge, 640..1568, "px") { n ->
+                        s.update { it.copy(screenshotMaxEdge = (n / 32) * 32) }
+                    }
+                }
+            }
         }
-        note("What it reads goes to your AI provider with your question.")
+        note("What it reads, and the screenshots, go to your AI provider with your question.")
         if (v.assistantBackend != AssistantBackendType.CLAUDE) note(NEEDS_CLAUDE)
     }
 }

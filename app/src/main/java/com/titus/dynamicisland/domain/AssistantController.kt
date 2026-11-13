@@ -559,7 +559,7 @@ class AssistantController(
                         onSources = { sources -> scope.launch { if (request.isActive) sources.take(1).map(::sourceCard).forEach(::showCard) } },
                         onEnd = { action -> scope.launch { if (request.isActive) atEnd += action } },
                         actingTools = DeviceTools.ACTING,
-                        quietTools = setOf("read_screen", "open_app"),
+                        quietTools = setOf("read_screen", "look_at_screen", "open_app"),
                         onActing = { step -> scope.launch { if (request.isActive) _state.update { it?.copy(acting = true, steps = step) } } },
                         onDone = habits::onTool,
                     )

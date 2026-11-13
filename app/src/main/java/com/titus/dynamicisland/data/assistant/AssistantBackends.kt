@@ -12,6 +12,7 @@ import com.anthropic.errors.UnauthorizedException
 import android.util.Log
 import com.anthropic.core.JsonValue
 import com.anthropic.helpers.BetaMessageAccumulator
+import com.anthropic.models.beta.messages.BetaBase64ImageSource
 import com.anthropic.models.beta.messages.BetaContentBlockParam
 import com.anthropic.models.beta.messages.BetaMessage
 import com.anthropic.models.beta.messages.BetaMessageParam
@@ -131,7 +132,19 @@ class ClaudeBackend(private val apiKey: String, private val model: String) : Ass
                             BetaContentBlockParam.ofToolResult(
                                 BetaToolResultBlockParam.builder()
                                     .toolUseId(call.id())
-                                    .content(result.text)
+                                    .apply {
+                                        val image = result.image
+                                        if (image == null) content(result.text)
+                                        else contentOfBlocks(listOf(
+                                            BetaToolResultBlockParam.Content.Block.ofText(result.text),
+                                            BetaToolResultBlockParam.Content.Block.ofImage(
+                                                BetaBase64ImageSource.builder()
+                                                    .mediaType(BetaBase64ImageSource.MediaType.IMAGE_JPEG)
+                                                    .data(android.util.Base64.encodeToString(image, android.util.Base64.NO_WRAP))
+                                                    .build(),
+                                            ),
+                                        ))
+                                    }
                                     .apply { if (result.isError) isError(true) }
                                     .build(),
                             )
