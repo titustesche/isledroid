@@ -57,7 +57,8 @@ class Toolbox(
     /** After a tool ran without an error (routines are learned from these). */
     private val onDone: (name: String, input: Map<String, Any?>) -> Unit = { _, _ -> },
 ) {
-    data class Result(val text: String, val isError: Boolean)
+    /** [image]: a JPEG that goes along with the text (a screenshot). */
+    class Result(val text: String, val isError: Boolean, val image: ByteArray? = null)
 
     /**
      * Working its way through other apps. Text written between those steps is the model thinking aloud
@@ -98,7 +99,8 @@ class Toolbox(
         }
         return try {
             // Only the start of the result: some (the screen, texts) are private and don't belong in the system log.
-            Result(tool.run(ToolInput(input, tool.params, onCard, onEnd)), isError = false)
+            val toolInput = ToolInput(input, tool.params, onCard, onEnd)
+            Result(tool.run(toolInput), isError = false, image = toolInput.image)
                 .also { Log.d(TAG, "$name $input -> ${it.text.take(120).replace('\n', ' ')}${if (it.text.length > 120) " …" else ""}") }
                 .also { runCatching { onDone(name, input) } }
         } catch (e: CancellationException) {
@@ -134,6 +136,8 @@ class ToolInput(
      */
     val atEnd: (() -> Unit) -> Unit = { it() },
 ) {
+    /** A JPEG the tool attaches to its result, for the model to look at. */
+    var image: ByteArray? = null
 
     fun string(name: String): String = optString(name) ?: missing(name)
 

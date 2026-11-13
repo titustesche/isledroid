@@ -2,6 +2,7 @@ package com.titus.dynamicisland.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.graphics.Bitmap
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.Region
@@ -10,9 +11,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import android.view.Display
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -42,6 +45,49 @@ object ScreenReader {
         walk(root, out, maxChars, 0, if (numbered) found else null, positions, merged = false)
         elements = found
         return Screen(root.packageName?.toString().orEmpty(), out.toString().trim())
+    }
+
+    /**
+     * A picture of the whole display as JPEG, its longer edge at most [maxEdge] pixels: for what apps draw without
+     * text (maps, route times, images, games). Android 11 and later; blocks up to a few seconds.
+     */
+    fun screenshot(maxEdge: Int, quality: Int = 80): ByteArray {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) throw ActionException("Screenshots need Android 11 or later.")
+        val s = service ?: throw ActionException("The island's accessibility service isn't connected.")
+        val latch = CountDownLatch(1)
+        var result: AccessibilityService.ScreenshotResult? = null
+        var error: Int? = null
+        // Not the main executor: the island's main thread may be busy (or waiting), and the result would never arrive.
+        s.takeScreenshot(Display.DEFAULT_DISPLAY, { callbacks.post(it) }, object : AccessibilityService.TakeScreenshotCallback {
+            override fun onSuccess(r: AccessibilityService.ScreenshotResult) { result = r; latch.countDown() }
+            override fun onFailure(code: Int) { error = code; latch.countDown() }
+        })
+        if (!latch.await(5, TimeUnit.SECONDS)) throw ActionException("The screenshot took too long.")
+        val shot = result ?: throw ActionException(
+            when (error) {
+                AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW -> "This app blocks screenshots."
+                AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT -> "Too soon after the last screenshot; try again."
+                else -> "The screenshot failed ($error)."
+            },
+        )
+        val buffer = shot.hardwareBuffer
+        try {
+            val hardware = Bitmap.wrapHardwareBuffer(buffer, shot.colorSpace)
+                ?: throw ActionException("The screenshot couldn't be read.")
+            val full = hardware.copy(Bitmap.Config.ARGB_8888, false)
+            hardware.recycle()
+            val scale = (maxEdge.toFloat() / maxOf(full.width, full.height)).coerceAtMost(1f)
+            val small = if (scale < 1f) {
+                Bitmap.createScaledBitmap(full, (full.width * scale).toInt(), (full.height * scale).toInt(), true).also { full.recycle() }
+            } else full
+            return ByteArrayOutputStream().use { out ->
+                small.compress(Bitmap.CompressFormat.JPEG, quality, out)
+                small.recycle()
+                out.toByteArray()
+            }
+        } finally {
+            buffer.close()
+        }
     }
 
     /** The app in front (not this one), or null when unknown. */

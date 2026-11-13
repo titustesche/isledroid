@@ -132,6 +132,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val assistantDoneVisibleMs = intPreferencesKey("assistant_done_visible_ms")
         val assistantEndDelayMs = intPreferencesKey("assistant_end_delay_ms")
         val assistantEndOnThanks = booleanPreferencesKey("assistant_end_on_thanks")
+        val assistantScreenshots = booleanPreferencesKey("assistant_screenshots")
+        val screenshotMaxEdge = intPreferencesKey("screenshot_max_edge")
         val messagesConfirm = booleanPreferencesKey("messages_confirm")
         val whatsappAutoSend = booleanPreferencesKey("whatsapp_auto_send")
         val whatsappSendWaitMs = intPreferencesKey("whatsapp_send_wait_ms")
@@ -308,6 +310,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             assistantDoneVisibleMs = this[K.assistantDoneVisibleMs] ?: d.assistantDoneVisibleMs,
             assistantEndDelayMs = this[K.assistantEndDelayMs] ?: d.assistantEndDelayMs,
             assistantEndOnThanks = this[K.assistantEndOnThanks] ?: d.assistantEndOnThanks,
+            assistantScreenshots = this[K.assistantScreenshots] ?: d.assistantScreenshots,
+            screenshotMaxEdge = this[K.screenshotMaxEdge] ?: d.screenshotMaxEdge,
             messagesConfirm = this[K.messagesConfirm] ?: d.messagesConfirm,
             whatsappAutoSend = this[K.whatsappAutoSend] ?: d.whatsappAutoSend,
             whatsappSendWaitMs = this[K.whatsappSendWaitMs] ?: d.whatsappSendWaitMs,
@@ -502,6 +506,8 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         this[K.assistantDoneVisibleMs] = s.assistantDoneVisibleMs
         this[K.assistantEndDelayMs] = s.assistantEndDelayMs
         this[K.assistantEndOnThanks] = s.assistantEndOnThanks
+        this[K.assistantScreenshots] = s.assistantScreenshots
+        this[K.screenshotMaxEdge] = s.screenshotMaxEdge
         this[K.messagesConfirm] = s.messagesConfirm
         this[K.whatsappAutoSend] = s.whatsappAutoSend
         this[K.whatsappSendWaitMs] = s.whatsappSendWaitMs
