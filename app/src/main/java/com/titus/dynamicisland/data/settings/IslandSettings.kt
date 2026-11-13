@@ -371,6 +371,8 @@ data class IslandSettings(
     val mapCloseOnArrival: Boolean = true,
     /** How close counts as arrived. */
     val mapArrivalRadiusM: Int = 15,
+    /** Arriving at a remembered place (the parked car) deletes that note. */
+    val mapForgetOnArrival: Boolean = true,
 
     // Gestures
     val gestureActions: Map<Gesture, GestureAction> = DEFAULT_GESTURES,

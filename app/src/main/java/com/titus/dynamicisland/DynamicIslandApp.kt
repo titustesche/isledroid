@@ -66,8 +66,12 @@ class AppGraph(app: Application) {
             settings.settings.map { it.blockedPlayers }.distinctUntilChanged().collect { media.blockedPackages = it }
         }
         scope.launch {
-            settings.settings.map { if (it.mapCloseOnArrival) it.mapArrivalRadiusM else 0 }.distinctUntilChanged()
-                .collect { map.arrivalRadiusM = it }
+            settings.settings.map { it.mapArrivalRadiusM to it.mapCloseOnArrival }.distinctUntilChanged()
+                .collect { (radius, close) -> map.arrivalRadiusM = radius; map.closeOnArrival = close }
+        }
+        // Got to the parked car: the note that led there has done its job.
+        map.onArrival = { target ->
+            if (settings.settings.value.mapForgetOnArrival) target.memoryId?.let(memory::remove)
         }
         scope.launch {
             // Only what decides whose pop-ups are replaced; a full sync touches every app's channels.
