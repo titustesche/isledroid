@@ -119,7 +119,7 @@ fun SettingsApp() {
             composable(Routes.ASSISTANT_TOOLS) { AssistantToolsScreen(handle, back) }
             composable(Routes.MEMORY) { MemoryScreen(handle, back) }
             composable(Routes.NETWORK) { NetworkScreen(handle, back) }
-            composable(Routes.HABITS) { HabitsScreen(handle, back) }
+            composable(Routes.HABITS) { HabitsScreen(handle, back, pickApps) }
             composable(Routes.ASSISTANT_AI) { AssistantAiScreen(handle, back) }
             composable(Routes.ASSISTANT_VOICE) { AssistantVoiceScreen(handle, back) }
             composable(Routes.ASSISTANT_SCREEN) { ReadScreenScreen(handle, back) }
@@ -254,6 +254,7 @@ private fun AppPickerTarget.parent() = when (this) {
     AppPickerTarget.NOTIFICATIONS -> Routes.NOTIFICATIONS
     AppPickerTarget.PLAYERS -> Routes.MUSIC
     AppPickerTarget.FAVORITES -> Routes.TOOLS
+    AppPickerTarget.HABITS -> Routes.HABITS
 }
 
 /** "~/island/system-events/batteries", one crumb per page from the top down to [entry]'s. */
