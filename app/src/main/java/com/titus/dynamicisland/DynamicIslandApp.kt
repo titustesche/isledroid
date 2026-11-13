@@ -8,6 +8,7 @@ import com.titus.dynamicisland.data.assistant.AssistantSecrets
 import com.titus.dynamicisland.data.assistant.HabitLog
 import com.titus.dynamicisland.data.notifications.NotificationKind
 import com.titus.dynamicisland.domain.HabitTracker
+import com.titus.dynamicisland.domain.RoutineSources
 import com.titus.dynamicisland.domain.MapController
 import com.titus.dynamicisland.data.assistant.PiperStore
 import com.titus.dynamicisland.domain.AssistantController
@@ -48,6 +49,7 @@ class AppGraph(app: Application) {
     val map = MapController(app, scope)
     val habitLog = HabitLog(app)
     val habits = HabitTracker(habitLog, { settings.settings.value }, icons::label)
+    private val routineSources = RoutineSources(app, scope, media, habits)
     val assistant = AssistantController(app, scope, settings, assistantSecrets, piper, system, media, notifications, memory, map, habits)
     val controller = IslandController(app, scope, settings, media, notifications, system, assistant, map)
     val popups = PopupSuppressor(app, scope)
@@ -73,6 +75,7 @@ class AppGraph(app: Application) {
         map.onArrival = { target ->
             if (settings.settings.value.mapForgetOnArrival) target.memoryId?.let(memory::remove)
         }
+        routineSources.start()
         scope.launch {
             // Only what decides whose pop-ups are replaced; a full sync touches every app's channels.
             settings.settings
