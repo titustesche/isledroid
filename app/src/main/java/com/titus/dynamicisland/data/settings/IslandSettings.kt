@@ -41,6 +41,9 @@ enum class AssistantBackendType(val label: String) { CLAUDE("Claude"), OPENAI_CO
 /** Who speaks the assistant's answers. */
 enum class AssistantVoiceType(val label: String) { PHONE("Phone"), PIPER("Piper"), GOOGLE("Google"), ELEVENLABS("ElevenLabs") }
 
+/** How readily the assistant offers a next step after a task. */
+enum class FollowUpLevel(val label: String) { NEVER("Never"), SOMETIMES("Sometimes"), OFTEN("Often") }
+
 /** Where the assistant's "navigate" tool sends routes. */
 enum class NavigationApp(val label: String, val pkg: String?) {
     GOOGLE_MAPS("Google Maps", "com.google.android.apps.maps"),
@@ -302,6 +305,27 @@ data class IslandSettings(
     val assistantEndDelayMs: Int = 500,
     /** "Danke", "das war's" and the like close the conversation at once. */
     val assistantEndOnThanks: Boolean = true,
+    /** A carried-out task (timer, route, light …) whose answer asks nothing closes the conversation by itself. */
+    val assistantEndAfterTask: Boolean = true,
+    /** Any answer that doesn't end in a question closes the conversation too (facts, chat), not only finished tasks. */
+    val assistantEndAfterAnswer: Boolean = true,
+    /** After it asked something, how long it keeps listening for the reply before giving up. */
+    val assistantReplyWaitS: Int = 10,
+    /** How readily it offers a next step after a task ("route started; music?"). */
+    val assistantFollowUps: FollowUpLevel = FollowUpLevel.OFTEN,
+    /** On opening, it gets a turn before you speak: offers a routine, mentions what matters, or just greets. */
+    val openerEnabled: Boolean = true,
+    /** What it's told about for that first turn. */
+    val openerRoutines: Boolean = true,
+    val openerSituation: Boolean = true,
+    val openerCalendar: Boolean = true,
+    val openerMessages: Boolean = false,
+    /** Calendar events this many hours ahead count as coming up. */
+    val openerCalendarHours: Int = 3,
+    /** With nothing worth mentioning it greets you; off: it stays quiet and just listens. */
+    val openerGreets: Boolean = true,
+    /** Ready later than this (seconds after opening), the first turn is dropped. */
+    val openerMaxWaitS: Int = 5,
     /** With reading the screen allowed, it may also take a screenshot for what apps draw without text (route times in Waze). */
     val assistantScreenshots: Boolean = true,
     /** Longer edge of those screenshots in pixels: sharper costs more tokens. */

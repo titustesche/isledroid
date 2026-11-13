@@ -19,4 +19,17 @@ class SignOffTest {
             "Ok", "Passt", "Nein", "Das war gut", "Timer fünf Minuten", "",
         ).forEach { assertFalse(it, SignOff.matches(it)) }
     }
+
+    @Test fun answerEndsWithAQuestion() {
+        listOf(
+            "Route läuft. Musik?", "Route läuft. Musik?“", "Was willst du hören? 😏", "Wirklich?!", "Soll ich?\n",
+            "Läuft. „Was möchtest du hören?“",
+        ).forEach { assertTrue(it, SignOff.endsWithQuestion(it)) }
+    }
+
+    @Test fun questionOnlyMidAnswer() {
+        listOf(
+            "Schon wieder? Route läuft.", "Läuft.", "Ein Komma acht Kilometer…", "", "Zur Arbeit, wo sonst? Wird gemacht!",
+        ).forEach { assertFalse(it, SignOff.endsWithQuestion(it)) }
+    }
 }

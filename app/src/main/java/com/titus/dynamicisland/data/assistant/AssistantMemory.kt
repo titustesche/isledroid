@@ -40,6 +40,11 @@ class AssistantMemory(context: Context) {
         return m
     }
 
+    /** Puts back a note that was deleted by mistake, as it was (same id, date and place). */
+    fun restore(m: Memory) {
+        update { list -> if (list.any { it.id == m.id }) list else (listOf(m) + list).sortedByDescending { it.createdAt }.take(MAX) }
+    }
+
     fun remove(id: String): Boolean {
         var found = false
         update { list -> list.filterNot { (it.id == id).also { hit -> if (hit) found = true } } }
