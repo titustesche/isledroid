@@ -302,6 +302,10 @@ data class IslandSettings(
     val assistantEndDelayMs: Int = 500,
     /** "Danke", "das war's" and the like close the conversation at once. */
     val assistantEndOnThanks: Boolean = true,
+    /** With reading the screen allowed, it may also take a screenshot for what apps draw without text (route times in Waze). */
+    val assistantScreenshots: Boolean = true,
+    /** Longer edge of those screenshots in pixels: sharper costs more tokens. */
+    val screenshotMaxEdge: Int = 1280,
     /** Messages (texts, replies, WhatsApp) wait for a yes before they go out. */
     val messagesConfirm: Boolean = true,
     /** WhatsApp messages are sent by pressing WhatsApp's send button; off: the chat opens with the text typed in. */
