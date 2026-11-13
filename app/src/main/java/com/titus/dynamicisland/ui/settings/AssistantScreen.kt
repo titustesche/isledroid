@@ -66,11 +66,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import com.titus.dynamicisland.data.assistant.PiperStore
 import com.titus.dynamicisland.data.assistant.PiperVoice
 import com.titus.dynamicisland.data.assistant.PiperVoices
-import com.titus.dynamicisland.data.settings.ActionStyle
 import com.titus.dynamicisland.data.settings.AssistantBackendType
 import com.titus.dynamicisland.data.settings.AssistantVoiceType
-import com.titus.dynamicisland.data.settings.ControlConfirm
-import com.titus.dynamicisland.data.settings.WorkIndicator
 import com.titus.dynamicisland.data.settings.ElevenModel
 import com.titus.dynamicisland.data.settings.NavigationApp
 import com.titus.dynamicisland.domain.PreviewSample
@@ -78,7 +75,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Locale
-import kotlin.math.roundToInt
 
 private fun isDefaultAssistant(context: Context): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
@@ -93,37 +89,131 @@ fun AssistantScreen(s: SettingsHandle, onBack: () -> Unit, onNavigate: (String) 
     val context = LocalContext.current
     val graph = context.appGraph
     val keys by graph.assistantSecrets.keys.collectAsStateWithLifecycle()
+    val memories by graph.memory.memories.collectAsStateWithLifecycle()
     var isDefault by remember { mutableStateOf(isDefaultAssistant(context)) }
     var mic by remember { mutableStateOf(hasMic(context)) }
+    var permissions by remember { mutableStateOf(toolPermissionsGranted(context)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         isDefault = isDefaultAssistant(context)
         mic = hasMic(context)
+        permissions = toolPermissionsGranted(context)
     }
     val askMic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { mic = it }
+    val hasKey = when (v.assistantBackend) {
+        AssistantBackendType.CLAUDE -> keys.claude.isNotBlank()
+        AssistantBackendType.OPENAI_COMPATIBLE -> v.openAiBaseUrl.isNotBlank() && v.openAiModel.isNotBlank()
+    }
+    val claude = v.assistantBackend == AssistantBackendType.CLAUDE
 
     SettingsScaffold("Assistant", onBack, v, preview = PreviewSample.ASSISTANT) {
-        if (!isDefault || !mic) item {
-            TermCard("Setup") {
-                    SetupRow(
-                        "Default assistant app",
-                        "Hold the side key or swipe up from a bottom corner to talk to the island.",
-                        isDefault,
-                        "Choose",
-                    ) { context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
-                    SetupRow("Microphone", "Needed to hear your question.", mic, "Allow") {
-                        askMic.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                    if (!isDefault) {
-                        Text(
-                            "Under Default apps, pick \"Digital assistant app\" → Dynamic Island. On Samsung, also set " +
-                                "Settings → Advanced features → Side button → Press and hold to \"Digital assistant\".",
-                            fontSize = 13.sp, lineHeight = 18.sp, color = Term.Dim,
-                        )
-                    }
+        if (!isDefault || !mic || !hasKey) item {
+            val done = listOf(isDefault, mic, hasKey).count { it }
+            TermCard("Setup · $done of 3") {
+                SetupRow("Default assistant app", "Side key or swipe up from a bottom corner", isDefault, "Choose") {
+                    context.startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                }
+                if (!isDefault) {
+                    Text(
+                        "Default apps → \"Digital assistant app\" → Dynamic Island. On Samsung also: Advanced features → " +
+                            "Side button → Press and hold → \"Digital assistant\".",
+                        fontSize = 13.sp, lineHeight = 18.sp, color = Term.Dim,
+                    )
+                }
+                SetupRow("Microphone", "Needed to hear you", mic, "Allow") { askMic.launch(Manifest.permission.RECORD_AUDIO) }
+                SetupRow(
+                    if (claude) "API key" else "Server and model", v.assistantBackend.label, hasKey, "Add",
+                ) { onNavigate(Routes.ASSISTANT_AI) }
+                Text("disappears once everything is done", fontSize = 12.sp, letterSpacing = 0.6.sp, color = Term.Faint)
             }
         }
 
-        header("AI backend")
+        header("Brain & voice")
+        item {
+            ValueNavRow("AI", "Who answers", aiLabel(v)) { onNavigate(Routes.ASSISTANT_AI) }
+        }
+        item {
+            ValueNavRow("Voice", "How it sounds", v.assistantVoice.label, extra = {
+                RowPill("▶ hear") { graph.assistant.previewVoice() }
+            }) { onNavigate(Routes.ASSISTANT_VOICE) }
+        }
+
+        if (claude) {
+            header("What it can do")
+            item {
+                SwitchNavRow("Read the screen", "When you ask about what you see", v.assistantReadScreen,
+                    { on -> s.update { it.copy(assistantReadScreen = on) } }) { onNavigate(Routes.ASSISTANT_SCREEN) }
+            }
+            item {
+                SwitchNavRow("Use apps for you", "Taps, types and scrolls in other apps", v.assistantControl,
+                    { on -> s.update { it.copy(assistantControl = on) } }) { onNavigate(Routes.ASSISTANT_APPS) }
+            }
+            item {
+                ValueNavRow("Messages", if (v.messagesConfirm) "Asks before anything goes out" else "Texts go out as soon as you ask",
+                    if (v.messagesConfirm) "ask first" else "right away") { onNavigate(Routes.ASSISTANT_MESSAGES) }
+            }
+            item {
+                SwitchNavRow("Remember things", if (v.assistantMemory && memories.isNotEmpty()) "${memories.size} remembered" else "\"My locker is 214\"",
+                    v.assistantMemory, { on -> s.update { it.copy(assistantMemory = on) } }) { onNavigate(Routes.MEMORY) }
+            }
+            item {
+                SwitchNavRow("Learn routines", "Offers what you usually do now", v.habitsEnabled,
+                    { on -> s.update { it.copy(habitsEnabled = on) } }) { onNavigate(Routes.HABITS) }
+            }
+            item {
+                val n = v.wolDevices.size + v.httpActions.size
+                ValueNavRow("Devices & actions", "Wake-on-LAN, smart home, webhooks", if (n == 0) "none yet" else "$n set up") {
+                    onNavigate(Routes.NETWORK)
+                }
+            }
+
+            header("Conversation")
+            item {
+                SwitchNavRow("Ends by itself", "When nothing more is needed, or on \"danke\"", v.assistantSelfEnd,
+                    { on -> s.update { it.copy(assistantSelfEnd = on) } }) { onNavigate(Routes.ASSISTANT_CONVERSATION) }
+            }
+        } else {
+            note("Reading the screen, using apps, messages, memory, routines and devices need Claude as the AI.")
+        }
+
+        header("Look")
+        item {
+            ValueNavRow("Style", "Edge, glow, what it did", v.assistantEdge().label.lowercase()) { onNavigate(Routes.ASSISTANT_LOOK) }
+        }
+
+        if (claude) {
+            header("Privacy")
+            item {
+                ValueNavRow("Permissions", "Location, calendar, contacts, calls, texts, Do Not Disturb",
+                    "${permissions.count { it }} of ${permissions.size}") { onNavigate(Routes.ASSISTANT_TOOLS) }
+            }
+        }
+        note(
+            "Keys stay on this phone and out of backups. Your question, and anything you let it read or remember, goes to " +
+                "your AI provider. Speech recognition uses your phone's language.",
+        )
+    }
+}
+
+/** "Claude · opus 5.5", "OpenAI-compatible · llama3". */
+private fun aiLabel(v: com.titus.dynamicisland.data.settings.IslandSettings): String {
+    val model = when (v.assistantBackend) {
+        AssistantBackendType.CLAUDE -> {
+            val parts = v.claudeModel.removePrefix("claude-").split('-')
+            val numbers = parts.drop(1).takeWhile { it.length <= 2 && it.all(Char::isDigit) }
+            if (parts.first().isBlank()) "" else (listOf(parts.first()) + listOfNotNull(numbers.joinToString(".").ifEmpty { null })).joinToString(" ")
+        }
+        AssistantBackendType.OPENAI_COMPATIBLE -> v.openAiModel
+    }
+    return if (model.isBlank()) v.assistantBackend.label else "${v.assistantBackend.label} · $model"
+}
+
+/** Which AI answers, and how to reach it. */
+@Composable
+fun AssistantAiScreen(s: SettingsHandle, onBack: () -> Unit) {
+    val v = s.value
+    val graph = LocalContext.current.appGraph
+    val keys by graph.assistantSecrets.keys.collectAsStateWithLifecycle()
+    SettingsScaffold("AI", onBack, v, preview = PreviewSample.ASSISTANT) {
         item {
             SegmentedSetting("Provider", AssistantBackendType.entries, v.assistantBackend, { it.label }) { b ->
                 s.update { it.copy(assistantBackend = b) }
@@ -132,9 +222,7 @@ fun AssistantScreen(s: SettingsHandle, onBack: () -> Unit, onNavigate: (String) 
         when (v.assistantBackend) {
             AssistantBackendType.CLAUDE -> {
                 item { SecretField("Claude API key", keys.claude, graph.assistantSecrets::setClaudeKey) }
-                item {
-                    PlainField("Model", v.claudeModel, "claude-opus-5-5") { m -> s.update { it.copy(claudeModel = m.trim()) } }
-                }
+                item { PlainField("Model", v.claudeModel, "claude-opus-5-5") { m -> s.update { it.copy(claudeModel = m.trim()) } } }
                 note("Create a key at platform.claude.com. Answers use low effort for quick spoken replies.")
             }
             AssistantBackendType.OPENAI_COMPATIBLE -> {
@@ -145,272 +233,75 @@ fun AssistantScreen(s: SettingsHandle, onBack: () -> Unit, onNavigate: (String) 
                 }
                 item { SecretField("API key (optional for local servers)", keys.openAi, graph.assistantSecrets::setOpenAiKey) }
                 item { PlainField("Model", v.openAiModel, "model name") { m -> s.update { it.copy(openAiModel = m.trim()) } } }
-                item {
-                    Hint(
-                        "Works with OpenAI, OpenRouter, Groq, Mistral, or a local Ollama (http://<pc-ip>:11434/v1) / " +
-                            "LM Studio server. Plain-http local servers must be reachable from the phone.",
-                    )
-                }
+                note(
+                    "OpenAI, OpenRouter, Groq, Mistral, or a local Ollama (http://<pc-ip>:11434/v1) / LM Studio server " +
+                        "reachable from the phone. It only talks: abilities need Claude.",
+                )
             }
         }
+    }
+}
 
-        header("Voice")
+/** Who speaks, which voice, how fast; per-engine fields only for the engine picked. */
+@Composable
+fun AssistantVoiceScreen(s: SettingsHandle, onBack: () -> Unit) {
+    val v = s.value
+    val graph = LocalContext.current.appGraph
+    val keys by graph.assistantSecrets.keys.collectAsStateWithLifecycle()
+    SettingsScaffold("Voice", onBack, v, preview = PreviewSample.ASSISTANT) {
         item {
             SegmentedSetting("Spoken by", AssistantVoiceType.entries, v.assistantVoice, { it.label }) { t ->
                 s.update { it.copy(assistantVoice = t) }
             }
         }
         when (v.assistantVoice) {
-            AssistantVoiceType.PHONE -> {
-                item { PhoneVoiceSettings(s) }
-                item {
-                    Hint(
-                        "Google's engine sounds far better than most phone makers' own, so it's used when installed. " +
-                            "More voices: Google Speech Services → Settings → Install voice data.",
-                    )
-                }
-            }
-            AssistantVoiceType.PIPER -> {
-                item { PiperVoiceSettings(s, graph.piper) }
-                item {
-                    Hint(
-                        "Piper voices run entirely on your phone: free, without limits, even offline. Each voice " +
-                            "is a one-time download; until one is downloaded, the phone voice speaks.",
-                    )
-                }
-            }
+            AssistantVoiceType.PHONE -> item { PhoneVoiceChoice(s) }
+            AssistantVoiceType.PIPER -> item { PiperVoiceSettings(s, graph.piper) }
             AssistantVoiceType.GOOGLE -> {
                 item { SecretField("Google Cloud API key", keys.googleTts, graph.assistantSecrets::setGoogleTtsKey) }
                 item { GoogleVoiceSettings(s, keys.googleTts) }
-                item {
-                    Hint(
-                        "Google's Chirp 3 HD voices: the first million characters a month are free (many hours of " +
-                            "answers), then 30 dollars per million. Setup: in console.cloud.google.com create a project, " +
-                            "enable billing and the Cloud Text-to-Speech API, then create an API key restricted to that " +
-                            "API. A budget alert keeps surprises away. If Google fails, the phone voice takes over.",
-                    )
-                }
             }
             AssistantVoiceType.ELEVENLABS -> {
                 item { SecretField("ElevenLabs API key", keys.elevenLabs, graph.assistantSecrets::setElevenLabsKey) }
                 item { ElevenVoiceSettings(s, keys.elevenLabs) }
-                item {
-                    SegmentedSetting("Model", ElevenModel.entries, v.elevenModel, { it.label }) { m -> s.update { it.copy(elevenModel = m) } }
-                }
-                item {
-                    Hint(
-                        "Create a key at elevenlabs.io (the free plan covers roughly ten minutes of speech a month). " +
-                            "\"Fast\" starts talking sooner; \"Most natural\" sounds a little better. If ElevenLabs " +
-                            "can't be reached or the quota is used up, the phone voice takes over.",
-                    )
-                }
             }
         }
         item {
-            SliderSetting("Speaking speed", v.speechRate, 0.6f..1.6f, { f -> s.update { it.copy(speechRate = f) } },
+            val range = if (v.assistantVoice == AssistantVoiceType.ELEVENLABS) 0.7f..1.2f else 0.6f..1.6f
+            SliderSetting("Speaking speed", v.speechRate.coerceIn(range), range, { f -> s.update { it.copy(speechRate = f) } },
                 format = { String.format(Locale.ROOT, "%.1f×", it) })
         }
-        if (v.assistantVoice == AssistantVoiceType.ELEVENLABS) {
-            note("ElevenLabs voices go from 0.7× to 1.2×.")
-        }
         item {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-            ) {
-                TermButton("hear the voice") { graph.assistant.previewVoice() }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TermButton("▶ hear the voice") { graph.assistant.previewVoice() }
                 TermButton("[ try it now ]", filled = true) { graph.assistant.start() }
             }
         }
-        header("Look")
-        item {
-            ColorSetting("Color", v.assistantColor, { c -> s.update { it.copy(assistantColor = c) } },
-                summary = "The voice glow and the assistant's cards")
+        when (v.assistantVoice) {
+            AssistantVoiceType.PHONE -> item { PhoneEngineChoice(s) }
+            AssistantVoiceType.ELEVENLABS -> item {
+                ChoiceSetting("Model", ElevenModel.entries, v.elevenModel, { it.label }, summary = "\"Fast\" starts talking sooner") { m ->
+                    s.update { it.copy(elevenModel = m) }
+                }
+            }
+            else -> {}
         }
-        item {
-            SwitchSetting("Soft bottom edge", v.assistantSoftEdge, { on -> s.update { it.copy(assistantSoftEdge = on) } },
-                summary = "The island fades out towards the bottom instead of ending in a hard edge")
-        }
-        if (v.assistantSoftEdge) {
-            item {
-                SliderSetting("Fade starts at", v.assistantFadeStart, 0.1f..0.9f, { f -> s.update { it.copy(assistantFadeStart = f) } },
-                    format = { "${(it * 100).roundToInt()}% of the height" })
-            }
-        }
-        item {
-            SwitchSetting("Glow beyond the island", v.assistantGlowSpill, { on -> s.update { it.copy(assistantGlowSpill = on) } },
-                summary = "The voice glow spills softly past the island's edges onto the screen")
-        }
-        if (v.assistantGlowSpill) {
-            item { IntSliderSetting("Glow reach", v.assistantGlowReachDp, 0..40) { n -> s.update { it.copy(assistantGlowReachDp = n) } } }
-        }
-        item {
-            SwitchSetting("Feathered edge", v.assistantFeather, { on -> s.update { it.copy(assistantFeather = on) } },
-                summary = "A soft halo of the island's color melts its outline into the screen")
-        }
-        if (v.assistantFeather) {
-            item { IntSliderSetting("Halo reach", v.featherSpreadDp, 0..40) { n -> s.update { it.copy(featherSpreadDp = n) } } }
-            item { IntSliderSetting("Halo below", v.featherBottomDp, 0..40) { n -> s.update { it.copy(featherBottomDp = n) } } }
-            item { IntSliderSetting("Softness", v.featherBlurDp, 2..40) { n -> s.update { it.copy(featherBlurDp = n) } } }
-            item {
-                SliderSetting("Halo strength", v.featherOpacity, 0.1f..1f, { f -> s.update { it.copy(featherOpacity = f) } },
-                    format = { "${(it * 100).roundToInt()}%" })
-            }
-        }
-        item {
-            SegmentedSetting("What it did", ActionStyle.entries, v.assistantActionStyle, { it.label }) { st ->
-                s.update { it.copy(assistantActionStyle = st) }
-            }
-        }
-        item {
-            SwitchSetting("ASCII background", v.assistantAscii, { on -> s.update { it.copy(assistantAscii = on) } },
-                summary = "Drifting characters behind the assistant's text")
-        }
-        if (v.assistantAscii) {
-            item {
-                SliderSetting("Opacity", v.asciiOpacity, 0.05f..1f, { f -> s.update { it.copy(asciiOpacity = f) } },
-                    format = { "${(it * 100).roundToInt()}%" })
-            }
-            item { IntSliderSetting("Character size", v.asciiSizeSp, 6..18, "sp") { n -> s.update { it.copy(asciiSizeSp = n) } } }
-            item {
-                SliderSetting("Drift speed", v.asciiSpeed, 0f..1f, { f -> s.update { it.copy(asciiSpeed = f) } },
-                    format = { if (it < 0.005f) "Still" else String.format(Locale.ROOT, "%.2f×", it) })
-            }
-            item { IntSliderSetting("Grain", v.asciiGrainDp, 40..400) { n -> s.update { it.copy(asciiGrainDp = n) } } }
-            note("Small grain is busy and detailed, large is calm with big soft patches.")
-            item {
-                SwitchSetting("In the assistant's color", v.asciiAccent, { on -> s.update { it.copy(asciiAccent = on) } },
-                    summary = "Otherwise white")
-            }
-        }
-        if (v.assistantBackend == AssistantBackendType.CLAUDE) {
-            header("What it can do")
-            item {
-                SwitchSetting("Use apps for you", v.assistantControl, { on -> s.update { it.copy(assistantControl = on) } },
-                    summary = "It taps, types and scrolls in other apps (\"turn on Wi-Fi\", \"order my usual\"). Off by default")
-            }
-            if (v.assistantControl) {
-                item {
-                    ChoiceSetting("Asks before", ControlConfirm.entries, v.controlConfirm, { it.label }) { c -> s.update { it.copy(controlConfirm = c) } }
-                }
-                note("\"Only important ones\": sending, paying, deleting, confirming and the like, and all typing. Taps on a card do it too.")
-                item {
-                    IntSliderSetting("Steps per question", v.controlMaxSteps, 6..40, "") { n -> s.update { it.copy(controlMaxSteps = n) } }
-                }
-                item {
-                    IntSliderSetting("Wait after each step", v.controlStepDelayMs, 200..3000, "ms") { n ->
-                        s.update { it.copy(controlStepDelayMs = (n / 100) * 100) }
-                    }
-                }
-                item {
-                    SwitchSetting("Tap anywhere", v.controlTapAnywhere, { on -> s.update { it.copy(controlTapAnywhere = on) } },
-                        summary = "Taps by position in apps that hide their buttons (Lieferando & co.). Screen readings get a bit longer")
-                }
-                if (v.controlTapAnywhere) {
-                    item {
-                        IntSliderSetting("Long press", v.controlLongPressMs, 300..2000, "ms") { n ->
-                            s.update { it.copy(controlLongPressMs = (n / 50) * 50) }
-                        }
-                    }
-                }
-                item {
-                    SwitchSetting("Shrink while working", v.controlCompact, { on -> s.update { it.copy(controlCompact = on) } },
-                        summary = "The island becomes a small pill while it taps through apps, so it doesn't cover them")
-                }
-                if (v.controlCompact) {
-                    item {
-                        ChoiceSetting("Indicator", WorkIndicator.entries, v.controlIndicator, { it.label }) { c -> s.update { it.copy(controlIndicator = c) } }
-                    }
-                    item {
-                        SwitchSetting("Count the steps", v.controlShowSteps, { on -> s.update { it.copy(controlShowSteps = on) } })
-                    }
-                }
-                note("What it sees on screen goes to your AI provider. It never reads or types passwords and never touches this app.")
-            }
-            item {
-                SwitchSetting("Read the screen", v.assistantReadScreen, { on -> s.update { it.copy(assistantReadScreen = on) } },
-                    summary = "When you ask about what you're looking at; never in the background, never passwords")
-            }
-            if (v.assistantReadScreen) {
-                item {
-                    IntSliderSetting("Reads at most", v.screenReadMaxChars, 1000..15000, "characters") { n ->
-                        s.update { it.copy(screenReadMaxChars = (n / 500) * 500) }
-                    }
-                }
-            }
-            item {
-                SwitchSetting("Ends conversations itself", v.assistantSelfEnd, { on -> s.update { it.copy(assistantSelfEnd = on) } },
-                    summary = "Stops listening when a request needs nothing more from you (\"timer for ten minutes\")")
-            }
-            if (v.assistantSelfEnd) {
-                item {
-                    IntSliderSetting("Closes after its answer", v.assistantEndDelayMs, 0..3000, "ms") { n ->
-                        s.update { it.copy(assistantEndDelayMs = (n / 100) * 100) }
-                    }
-                }
-                item {
-                    SwitchSetting("\"Danke\" closes it", v.assistantEndOnThanks, { on -> s.update { it.copy(assistantEndOnThanks = on) } },
-                        summary = "\"Danke\", \"das war's\", \"thanks, that's it\" end it at once. \"Danke, kannst du noch …\" doesn't")
-                }
-            }
-            item {
-                IntSliderSetting("Answer stays for", v.assistantDoneVisibleMs, 1000..10000, "ms") { n ->
-                    s.update { it.copy(assistantDoneVisibleMs = (n / 250) * 250) }
-                }
-            }
-            note("\"Answer stays for\": when it ends another way (no microphone, an error), so there's time to read it.")
-            header("Messages")
-            item {
-                SwitchSetting("Ask before sending", v.messagesConfirm, { on -> s.update { it.copy(messagesConfirm = on) } },
-                    summary = "Texts, replies and WhatsApp wait for your yes. Off: they go out as soon as you ask. Calls always ask")
-            }
-            item {
-                SwitchSetting("Press send in WhatsApp", v.whatsappAutoSend, { on -> s.update { it.copy(whatsappAutoSend = on) } },
-                    summary = "\"Write Anna on WhatsApp …\" opens the chat with the text and sends it. Off: it's typed in for you to send")
-            }
-            if (v.whatsappAutoSend) {
-                item {
-                    IntSliderSetting("Wait for WhatsApp", v.whatsappSendWaitMs, 2000..15000, "ms") { n ->
-                        s.update { it.copy(whatsappSendWaitMs = (n / 500) * 500) }
-                    }
-                }
-                item {
-                    SwitchSetting("Back to where you were", v.messageReturnToApp, { on -> s.update { it.copy(messageReturnToApp = on) } },
-                        summary = "After sending, the app you had open (Maps, …) comes back instead of staying in WhatsApp")
-                }
-                note("Pressing send needs the screen unlocked. If WhatsApp is slow to open on your phone, wait longer.")
-            }
-            header("More")
-            item {
-                val devices = v.wolDevices.size + v.httpActions.size
-                NavRow("Devices & actions", if (devices == 0) "Wake-on-LAN, smart home and webhooks" else "$devices set up", null) {
-                    onNavigate(Routes.NETWORK)
-                }
-            }
-            item {
-                NavRow("Habits", if (!v.habitsEnabled) "Off" else "Routines it noticed, and suggests", null) { onNavigate(Routes.HABITS) }
-            }
-            item {
-                val count = LocalContext.current.appGraph.memory.memories.collectAsStateWithLifecycle().value.size
-                NavRow("Memory", if (!v.assistantMemory) "Off" else if (count == 0) "Nothing remembered yet" else "$count remembered", null) {
-                    onNavigate(Routes.MEMORY)
-                }
-            }
-            item {
-                NavRow("Tool permissions", "Location, calendar, contacts, calls, texts, Do Not Disturb", null) {
-                    onNavigate(Routes.ASSISTANT_TOOLS)
-                }
-            }
-        }
-        note("Speech recognition comes from your phone's speech services and uses its language.")
-        note("API keys are stored only on this phone and are excluded from backups.")
+        note(
+            when (v.assistantVoice) {
+                AssistantVoiceType.PHONE -> "More voices: Google Speech Services → Settings → Install voice data."
+                AssistantVoiceType.PIPER -> "Runs on the phone: free, unlimited, offline. Until a voice is downloaded, the phone voice speaks."
+                AssistantVoiceType.GOOGLE -> "Chirp 3 HD: a million characters a month free. Key from console.cloud.google.com with the " +
+                    "Text-to-Speech API on. If Google fails, the phone voice speaks."
+                AssistantVoiceType.ELEVENLABS -> "Key from elevenlabs.io (free plan: about ten minutes a month). Out of quota or offline, the phone voice speaks."
+            },
+        )
     }
 }
 
 /** The permissions the assistant's tools can use, one row each. */
 @Composable
 fun AssistantToolsScreen(s: SettingsHandle, onBack: () -> Unit) {
-    SettingsScaffold("Tool permissions", onBack, s.value, preview = PreviewSample.ASSISTANT) {
+    SettingsScaffold("Permissions", onBack, s.value, preview = PreviewSample.ASSISTANT) {
         item { ToolPermissions() }
         item {
             Hint(
@@ -436,14 +327,23 @@ private val TOOL_PERMISSIONS = listOf(
     ToolPermission("Text messages", "Sending an SMS after your yes, reading your texts", listOf(Manifest.permission.SEND_SMS, Manifest.permission.READ_SMS)),
 )
 
+private fun granted(context: Context, p: ToolPermission) = p.permissions.all {
+    ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+}
+
+private fun dndAccess(context: Context) =
+    context.getSystemService(android.app.NotificationManager::class.java).isNotificationPolicyAccessGranted
+
+/** One entry per row of the permissions page: whether it's allowed. */
+private fun toolPermissionsGranted(context: Context): List<Boolean> =
+    TOOL_PERMISSIONS.map { granted(context, it) } + dndAccess(context) + Settings.System.canWrite(context)
+
 /** One row per permission the assistant's tools can use, each with its own "Allow". */
 @Composable
 private fun ToolPermissions() {
     val context = LocalContext.current
-    fun granted(p: ToolPermission) = p.permissions.all {
-        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-    }
-    fun dndAccess() = context.getSystemService(android.app.NotificationManager::class.java).isNotificationPolicyAccessGranted
+    fun granted(p: ToolPermission) = granted(context, p)
+    fun dndAccess() = dndAccess(context)
     var refresh by remember { mutableStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -494,19 +394,12 @@ private fun PlainField(
     onChange: (String) -> Unit,
 ) = TermField(label, value, onChange, placeholder, keyboard)
 
-/** Speech engine and voice for the phone's own text-to-speech. */
+/** The voice of the phone's own text-to-speech, from the engine set below it. */
 @Composable
-private fun PhoneVoiceSettings(s: SettingsHandle) {
+private fun PhoneVoiceChoice(s: SettingsHandle) {
     val v = s.value
     val context = LocalContext.current
-    val engines = remember { PhoneVoices.engines(context) }
-    val engine = remember(v.phoneTtsEngine, engines) { PhoneVoices.resolveEngine(context, v.phoneTtsEngine) }
-    if (engines.size > 1) {
-        val current = engines.firstOrNull { it.pkg == engine } ?: engines.first()
-        ChoiceSetting("Speech engine", engines, current, { it.label }) { e ->
-            s.update { it.copy(phoneTtsEngine = e.pkg, phoneVoice = "") }
-        }
-    }
+    val engine = remember(v.phoneTtsEngine) { PhoneVoices.resolveEngine(context, v.phoneTtsEngine) }
     // Voices are only known once an engine instance is up.
     var voices by remember(engine) { mutableStateOf<List<Voice>?>(null) }
     DisposableEffect(engine) {
@@ -527,6 +420,20 @@ private fun PhoneVoiceSettings(s: SettingsHandle) {
                 s.update { it.copy(phoneVoice = picked?.name.orEmpty()) }
             }
         }
+    }
+}
+
+/** The phone's speech engine; only shown when there's more than one. Google's is preferred when installed. */
+@Composable
+private fun PhoneEngineChoice(s: SettingsHandle) {
+    val v = s.value
+    val context = LocalContext.current
+    val engines = remember { PhoneVoices.engines(context) }
+    if (engines.size < 2) return
+    val engine = remember(v.phoneTtsEngine, engines) { PhoneVoices.resolveEngine(context, v.phoneTtsEngine) }
+    val current = engines.firstOrNull { it.pkg == engine } ?: engines.first()
+    ChoiceSetting("Speech engine", engines, current, { it.label }, summary = "Only if you have more than one") { e ->
+        s.update { it.copy(phoneTtsEngine = e.pkg, phoneVoice = "") }
     }
 }
 

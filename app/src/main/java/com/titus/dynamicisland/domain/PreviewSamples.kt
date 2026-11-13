@@ -27,7 +27,9 @@ import com.titus.dynamicisland.data.system.SystemState
  * apply. [openByDefault]: shown expanded until a gesture closes it.
  */
 enum class PreviewSample(val openByDefault: Boolean = false) {
-    IDLE, MUSIC, TIMER, BOTH, ALERT, EVENT, BATTERIES, CALL(openByDefault = true), TOOLS(openByDefault = true), ASSISTANT,
+    IDLE, MUSIC, TIMER, BOTH, ALERT, EVENT, BATTERIES, CALL(openByDefault = true), TOOLS(openByDefault = true),
+    /** Open: a conversation. Swiped up: the small pill it shrinks to while working in other apps. */
+    ASSISTANT(openByDefault = true),
     MAP(openByDefault = true),
 }
 
@@ -56,7 +58,9 @@ class PreviewSamples(private val context: Context) {
                 if (open) IslandUiState(IslandMode.EXPANDED, IslandActivity.Tools, system = SystemState(torchOn = true))
                 else IslandUiState(IslandMode.IDLE)
             PreviewSample.MAP -> if (open) IslandUiState(IslandMode.EXPANDED, mapSample) else IslandUiState(IslandMode.COMPACT, mapSample)
-            PreviewSample.ASSISTANT -> IslandUiState(
+            PreviewSample.ASSISTANT -> if (!open) {
+                IslandUiState(IslandMode.COMPACT, IslandActivity.Assistant(AssistantUi(AssistantPhase.THINKING, question = "Order my usual", acting = true, steps = 3)))
+            } else IslandUiState(
                 IslandMode.ASSISTANT,
                 IslandActivity.Assistant(
                     AssistantUi(
