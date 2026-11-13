@@ -168,6 +168,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val mapPulseIntervalS = floatPreferencesKey("map_pulse_interval_s")
         val mapCloseOnArrival = booleanPreferencesKey("map_close_on_arrival")
         val mapArrivalRadiusM = intPreferencesKey("map_arrival_radius_m")
+        val mapForgetOnArrival = booleanPreferencesKey("map_forget_on_arrival")
         val batteryDevices = stringSetPreferencesKey("battery_devices")
         val headphoneBattery = booleanPreferencesKey("headphone_battery_with_music")
         val animSpeed = floatPreferencesKey("anim_speed")
@@ -346,6 +347,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             mapPulseIntervalS = this[K.mapPulseIntervalS] ?: d.mapPulseIntervalS,
             mapCloseOnArrival = this[K.mapCloseOnArrival] ?: d.mapCloseOnArrival,
             mapArrivalRadiusM = this[K.mapArrivalRadiusM] ?: d.mapArrivalRadiusM,
+            mapForgetOnArrival = this[K.mapForgetOnArrival] ?: d.mapForgetOnArrival,
             batteryDevices = this[K.batteryDevices] ?: d.batteryDevices,
             headphoneBatteryWithMusic = this[K.headphoneBattery] ?: d.headphoneBatteryWithMusic,
             animationSpeed = this[K.animSpeed] ?: d.animationSpeed,
@@ -542,6 +544,7 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         this[K.mapPulseIntervalS] = s.mapPulseIntervalS
         this[K.mapCloseOnArrival] = s.mapCloseOnArrival
         this[K.mapArrivalRadiusM] = s.mapArrivalRadiusM
+        this[K.mapForgetOnArrival] = s.mapForgetOnArrival
         this[K.batteryDevices] = s.batteryDevices
         this[K.headphoneBattery] = s.headphoneBatteryWithMusic
         this[K.animSpeed] = s.animationSpeed

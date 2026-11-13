@@ -18,6 +18,7 @@ class MemoryTools(
     private val context: Context,
     private val memory: AssistantMemory,
     private val map: MapController,
+    private val forgetOnArrival: () -> Boolean,
 ) {
     fun all(): List<AssistantTool> = listOf(remember, recall, forget, showOnMap)
 
@@ -76,10 +77,11 @@ class MemoryTools(
         val label = i.optString("label") ?: m.text.take(24)
         val here = if (Geo.hasAny(context)) Geo.current(context, timeoutS = 4)?.toPoint() else null
         // After the answer: while the assistant talks, it owns the island.
-        i.atEnd { map.show(MapTarget(label, place)) }
-        if (here == null) "The map opens after your answer."
-        else "The map opens after your answer. It's ${Geo.distance(here, place).toInt()} metres away, " +
-            "${compass(Geo.bearing(here, place))} of the user."
+        i.atEnd { map.show(MapTarget(label, place, memoryId = m.id)) }
+        val forgets = if (forgetOnArrival()) " The note deletes itself once the user gets there; don't offer to delete it." else ""
+        val where = here?.let { " For you only: ${Geo.distance(it, place).toInt()} metres away, ${compass(Geo.bearing(it, place))}." }.orEmpty()
+        "The map opens after your answer and shows direction and distance itself. Don't announce that it opens and don't " +
+            "repeat its age, distance or direction: say nothing, or one short remark in character.$where$forgets"
     }
 
     /** For the system prompt: what's stored, newest first, at most [limit]. */
