@@ -43,6 +43,8 @@ class AppGraph(app: Application) {
     val notifications = NotificationRepository()
     val icons = AppIconLoader(app)
     val system = SystemMonitor(app)
+    val signals = com.titus.dynamicisland.data.situations.Signals(app, scope, system)
+    val situations = com.titus.dynamicisland.domain.SituationEngine(app, scope, settings, signals)
     val assistantSecrets = AssistantSecrets(app)
     val piper = PiperStore(app)
     val memory = AssistantMemory(app)
@@ -50,7 +52,7 @@ class AppGraph(app: Application) {
     val habitLog = HabitLog(app)
     val habits = HabitTracker(habitLog, { settings.settings.value }, icons::label)
     private val routineSources = RoutineSources(app, scope, media, habits)
-    val assistant = AssistantController(app, scope, settings, assistantSecrets, piper, system, media, notifications, memory, map, habits)
+    val assistant = AssistantController(app, scope, settings, assistantSecrets, piper, system, media, notifications, memory, map, habits, situations)
     val controller = IslandController(app, scope, settings, media, notifications, system, assistant, map)
     val popups = PopupSuppressor(app, scope)
 

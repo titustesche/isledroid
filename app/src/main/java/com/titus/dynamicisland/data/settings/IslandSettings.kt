@@ -309,6 +309,12 @@ data class IslandSettings(
     val assistantEndAfterTask: Boolean = true,
     /** Any answer that doesn't end in a question closes the conversation too (facts, chat), not only finished tasks. */
     val assistantEndAfterAnswer: Boolean = true,
+    /** Named sets of conditions features switch on by (see SituationEngine). */
+    val situations: List<com.titus.dynamicisland.data.situations.Situation> = emptyList(),
+    /** The assistant is told which situations are active. */
+    val situationsTellAssistant: Boolean = true,
+    /** An answer the model didn't tag as waiting for a reply still keeps listening when it ends with "?". */
+    val assistantQuestionFallback: Boolean = false,
     /** After it asked something, how long it keeps listening for the reply before giving up. */
     val assistantReplyWaitS: Int = 10,
     /** How readily it offers a next step after a task ("route started; music?"). */

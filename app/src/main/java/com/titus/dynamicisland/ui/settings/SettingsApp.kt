@@ -85,6 +85,9 @@ object Routes {
     const val ASSISTANT_CONVERSATION = "assistant/conversation"
     const val ASSISTANT_LOOK = "assistant/look"
     const val NAVIGATION = "navigation"
+    const val SITUATIONS = "situations"
+    const val SITUATION = "situations/{id}"
+    fun situation(id: String) = "situations/$id"
     const val APPS = "apps/{target}"
     fun apps(target: AppPickerTarget) = "apps/${target.name}"
 }
@@ -128,6 +131,8 @@ fun SettingsApp() {
             composable(Routes.ASSISTANT_CONVERSATION) { ConversationScreen(handle, back) }
             composable(Routes.ASSISTANT_LOOK) { AssistantLookScreen(handle, back) }
             composable(Routes.NAVIGATION) { NavigationScreen(handle, back) }
+            composable(Routes.SITUATIONS) { SituationsScreen(handle, onOpen = { go(Routes.situation(it)) }, onBack = back) }
+            composable(Routes.SITUATION) { entry -> SituationEditScreen(handle, entry.arguments?.getString("id").orEmpty(), back) }
             composable(Routes.APPS) { entry ->
                 val target = AppPickerTarget.valueOf(entry.arguments?.getString("target") ?: AppPickerTarget.HIDDEN.name)
                 AppPickerScreen(target, handle, back)
@@ -246,6 +251,8 @@ private val PAGES: Map<String, Pair<String?, String>> = mapOf(
     Routes.NETWORK to (Routes.ASSISTANT to "devices"),
     Routes.HABITS to (Routes.ASSISTANT to "habits"),
     Routes.NAVIGATION to (Routes.HOME to "navigation"),
+    Routes.SITUATIONS to (Routes.HOME to "situations"),
+    Routes.SITUATION to (Routes.SITUATIONS to "edit"),
 )
 
 /** The app picker lives under the page that opened it. */

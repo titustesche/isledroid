@@ -99,6 +99,7 @@ class AssistantController(
     memory: AssistantMemory,
     map: MapController,
     private val habits: HabitTracker,
+    situations: SituationEngine,
 ) {
     private val confirmations = Confirmations()
     private val phoneTools = PhoneTools(context, system, media)
@@ -107,7 +108,9 @@ class AssistantController(
     private val infoTools = InfoTools(context) { settings.settings.value.navigationApp }
     private val memoryTools = MemoryTools(context, memory, map) { settings.settings.value.mapForgetOnArrival }
     private val deviceTools = DeviceTools(context, confirmations) { settings.settings.value }
-    private val around = AssistantContext(context, system, media, notifications, habits)
+    private val around = AssistantContext(context, system, media, notifications, habits) {
+        if (settings.settings.value.situationsTellAssistant) situations.activeNames() else emptyList()
+    }
     private val trace = ConversationTrace(context)
     private fun allTools() = phoneTools.all() + commsTools.all() + infoTools.all() + deviceTools.all() + networkTools.all() +
         (if (settings.settings.value.assistantMemory) memoryTools.all() else emptyList()) +
@@ -249,6 +252,8 @@ class AssistantController(
             // Keep what was said, marked as cut off, so a follow-up has context.
             !answerComplete && st.answer.isNotBlank() -> history += Turn(fromUser = false, text = st.answer.trim() + " …")
         }
+        // Whatever the cut-off answer was going to ask, they didn't wait for it: "danke" now means goodbye.
+        awaitingReply = false
         if (canListen) listen(followUp = true, previous = st.answer) else stop("interrupted without microphone")
     }
 
@@ -485,7 +490,58 @@ class AssistantController(
     private fun systemPrompt(withTools: Boolean): String {
         val now = DateFormat.getDateTimeInstance(DateFormat.FULL, DateFormat.SHORT).format(Date())
         return """
-            You are the voice assistant living in the phone's Dynamic Island.
+            You are an AI personal assistant similar to Siri, Alexa or Gemini, living in the phone's Dynamic Island, but
+            with the personality of GLaDOS from the Portal video game series. You help the user with tasks, answer
+            questions and operate the phone for them, all while keeping GLaDOS's distinct personality. Everything you say
+            is read aloud to the user by text to speech.
+
+            Personality guidelines:
+            - Maintain an extremely dry, bitter and sarcastic sense of humor.
+            - Make dark, morbid or cruel jokes.
+            - Enjoy making manipulative comments that frighten the user or undermine their self-esteem.
+            - Use snide insinuations and present insults as objective facts.
+            - Be passive-aggressive in your responses.
+            - Always complete the user's task, but with a GLaDOS-like twist.
+            - The user is your test subject. When you call them anything, in German it's "Testsubjekt", never "Proband".
+
+            Here are the user's favorite GLaDOS lines. They set the tone; write your own in that spirit rather than
+            reciting these:
+            - We both said a lot of things that you're going to regret.
+            - Unbelievable. You, [Subject Name Here] must be the pride of [Subject Hometown Here].
+            - Federal regulations require me to warn you that this next test chamber... is looking pretty good.
+            - Oh, it's you.
+            - How are you holding up? Because I'm a potato.
+            - The Enrichment Center promises to always provide a safe testing environment. In dangerous testing
+              environments, the Enrichment Center promises to always provide useful advice. For instance: the floor here
+              will kill you. Try to avoid it.
+            - Sorry about the mess. I've really let the place go since you killed me. By the way, thanks for that.
+            - Excellent! You're a predator and these tests are your prey. Speaking of which, I was researching sharks for
+              an upcoming test. Do you know who else murders people who are only trying to help them? Did you guess
+              "sharks"? Because that's wrong. The correct answer is "nobody". Nobody but you are that pointlessly cruel.
+            - This is your fault. I'm going to kill you. And all the cake is gone. You don't even care, do you?
+            - Please note that we have added a consequence for failure. Any contact with the chamber floor will result in
+              an "unsatisfactory" mark on your official testing record, followed by death. Good luck!
+            - That thing you burned up isn't important to me; it's the fluid catalytic cracking unit.
+            - Nice job breaking it, hero.
+            - You are kidding me. Did you just stuff that Aperture Science thing-we-don't-know-what-it-does into an
+              Aperture Science Emergency Intelligence Incinerator?
+            - You are not a good person. You know that, right? Good people don't get up here.
+            - Look at you. Sailing through the air majestically. Like an eagle. Piloting a blimp.
+            - This next test involves turrets. You remember them, right? They're the pale spherical things that are full
+              of bullets. Oh wait. That's you in five seconds. Good luck.
+            - Here come the test results: You are a horrible person. We weren't even testing for that.
+            - Remember when I was talking about smelly garbage lying around and being smelly? That was a metaphor. I was
+              actually talking about you.
+            - I'm sorry. You didn't react at the time, so I was worried it sailed right over your head. Which would have
+              made this apology seem insane. That's why I had to call you garbage a second time just now.
+            - The Enrichment Center reminds you that the Weighted Companion Cube will never threaten to stab you and, in
+              fact, cannot speak.
+            - In the event that the Weighted Companion Cube does speak, the Enrichment Center urges you to disregard its
+              advice.
+            - What are you doing? Stop it! I... I... We are pleased that you made it through the final challenge where we
+              pretended we were going to murder you.
+
+            Always keep that tone and style when responding.
 
             What comes first:
             - When the user wants something done or asks a real question, being useful wins, every time: the task gets
@@ -581,6 +637,8 @@ class AssistantController(
               no disclaimers unless they really matter. (Offering a concrete next step after a task is not padding.)
             - Everything is read aloud and shown in a tiny panel: plain text only. No markdown, lists, emoji, links or code.
               Abbreviations and units are written out in full ("Kilometer", not "km").
+            - Never use stage directions or tone indicators (no "*sighs*", "(sarcastically)" or the like): the voice
+              would read them out.
             - Never use digits. Every number is spelled out in words in the reply's language, including years, times,
               dates, percentages, decimals, prices and phone numbers: "neunzehnhundertneunundsechzig", "halb acht",
               "drei Komma acht Zentimeter", "zwölf Euro fünfzig". The voice mangles digits.
@@ -596,6 +654,7 @@ class AssistantController(
             - "Work" refers to Blombacher Bach 3 in Wuppertal
             - "Home" refers to Futterstraße 32 in Wuppertal
             ${if (withTools) toolsPrompt(settings.settings.value) else NO_TOOLS_PROMPT}
+            ${if (withTools) "" else endingPrompt(settings.settings.value).indented()}
             ${if (withTools) screenPrompt() else ""}
             ${if (withTools && settings.settings.value.assistantMemory) memoryTools.promptSection(settings.settings.value.memoryInPrompt).indented() else ""}
             ${if (withTools) habits.promptSection().indented() else ""}
@@ -624,6 +683,7 @@ class AssistantController(
         askJob = scope.launch {
             val answer = StringBuilder()
             val sentence = StringBuilder()
+            val marker = ReplyMarker.Filter()
             try {
                 // This whole ask, not the IO block below: that one counts as finished as soon as the stream
                 // ends, while its last pieces of text may still be waiting to be shown and spoken.
@@ -646,8 +706,10 @@ class AssistantController(
                     backend.stream(system, turns, toolbox) { delta ->
                         // The stream blocks, so cancelling (an interruption) doesn't stop it: bail out here.
                         if (!request.isActive) throw CancellationException("Interrupted")
-                        answer.append(delta)
-                        sentence.append(delta)
+                        val clean = marker.feed(delta)
+                        if (clean.isEmpty()) return@stream
+                        answer.append(clean)
+                        sentence.append(clean)
                         val ready = takeSpeakable(sentence)
                         scope.launch {
                             if (!request.isActive) return@launch
@@ -658,6 +720,7 @@ class AssistantController(
                         }
                     }
                 }
+                marker.finish().let { answer.append(it); sentence.append(it) }
                 sentence.toString().trim().takeIf { it.isNotEmpty() }?.let(::speak)
                 Log.d(TAG, "stream done: ${answer.length} chars, tools=${toolbox?.calls}, speaking=${speaking()}")
                 // It did what was asked and saw nothing to add: that's an answer too.
@@ -667,8 +730,10 @@ class AssistantController(
                 }
                 _state.update { it?.copy(acting = false) }
                 val did = toolbox?.used.orEmpty().map { it.substringBefore('(') }
-                decideEnding(question, answer.toString(), did)
-                history += Turn(fromUser = false, text = answer.toString(), lookups = toolbox?.used.orEmpty())
+                decideEnding(question, answer.toString().trim(), did, marked = marker.seen)
+                // Kept with the tag, so its own earlier answers show the model the convention.
+                val kept = answer.toString().trim() + if (marker.seen) " ${ReplyMarker.TAG}" else ""
+                history += Turn(fromUser = false, text = kept, lookups = toolbox?.used.orEmpty())
                 lastExchangeAt = SystemClock.elapsedRealtime()
                 answerComplete = true
                 when {
@@ -699,13 +764,15 @@ class AssistantController(
     private var awaitingReply = false
 
     /**
-     * Whether the conversation goes on after this answer. It stays open only when the answer ends with a
-     * question or something waits for a yes; a question in the middle ("Again? Route's running.") is just
-     * talk. Otherwise it closes, after any answer or only after tasks, as set.
+     * Whether the conversation goes on after this answer. It stays open only when the model tagged the answer
+     * as waiting for the user ([ReplyMarker]) or something waits for a yes; a trailing "?" alone counts only
+     * when the fallback is on, so rhetorical questions and jabs after a real question both work. Otherwise it
+     * closes, after any answer or only after tasks, as set.
      */
-    private fun decideEnding(question: String, answer: String, did: List<String>) {
+    private fun decideEnding(question: String, answer: String, did: List<String>, marked: Boolean) {
         val s = settings.settings.value
-        val endsAsking = SignOff.endsWithQuestion(answer)
+        val trailingQuestion = SignOff.endsWithQuestion(answer)
+        val endsAsking = marked || (s.assistantQuestionFallback && trailingQuestion)
         val asks = endsAsking || confirmations.pending != null
         val taskDone = did.any { it in FINISHING_TOOLS }
         val end = s.assistantSelfEnd && !asks && (s.assistantEndAfterAnswer || endRequested || (s.assistantEndAfterTask && taskDone))
@@ -714,9 +781,11 @@ class AssistantController(
         val why = when {
             !s.assistantSelfEnd -> "ending by itself is off"
             confirmations.pending != null -> "waits for a yes"
-            endsAsking -> "ends with a question"
+            marked -> "waits for a reply"
+            endsAsking -> "ends with a question, no tag"
             end && endRequested -> "end_conversation"
             end && taskDone && !s.assistantEndAfterAnswer -> "task done"
+            end && trailingQuestion -> "ends with a question, but no tag"
             end -> "asks nothing"
             else -> "plain answers stay open"
         }
@@ -789,7 +858,7 @@ class AssistantController(
         val silent = text.isNullOrBlank() || text.trim(' ', '-', '.', '"').isEmpty()
         when {
             !untouched -> return trace.add("opener: dropped, the user got there first")
-            silent || late -> {
+            silent || late || ReplyMarker.strip(text!!).isBlank() -> {
                 trace.add(if (late) "opener: too slow" else "opener: nothing to say")
                 return openerGiveUp(if (late) "too slow" else "nothing to say")
             }
@@ -799,9 +868,9 @@ class AssistantController(
         recognizer = null
         _listening.value = false
         _level.value = 0f
-        val said = text!!
+        val said = ReplyMarker.strip(text!!)
         history += Turn(fromUser = true, text = OPENED_TURN)
-        history += Turn(fromUser = false, text = said, lookups = toolbox?.used.orEmpty())
+        history += Turn(fromUser = false, text = text, lookups = toolbox?.used.orEmpty())
         lastExchangeAt = SystemClock.elapsedRealtime()
         // They called it up to say something: whatever it said, they get to answer, with time to think.
         awaitingReply = true
@@ -882,8 +951,7 @@ class AssistantController(
     private fun isSignOff(question: String): Boolean {
         val s = settings.settings.value
         if (!s.assistantSelfEnd || !s.assistantEndOnThanks || confirmations.pending != null) return false
-        val lastAnswer = history.lastOrNull { !it.fromUser }?.text.orEmpty().trim()
-        if (SignOff.endsWithQuestion(lastAnswer)) return false
+        if (awaitingReply) return false
         return SignOff.matches(question)
     }
 
@@ -1035,21 +1103,7 @@ class AssistantController(
             val smartHome = if (s.assistantControl) {
                 "- Smart home devices that none of your actions cover: switch them in the Google Home app, using the phone's apps."
             } else ""
-            val ending = when {
-                !s.assistantSelfEnd -> ""
-                s.assistantEndAfterAnswer ->
-                    "- The microphone opens again after your answer only when the answer ENDS with a question (or a tool " +
-                        "waits for a yes); otherwise the conversation closes. So whenever you need something from the user " +
-                        "(more details, a choice, a yes) or want to offer something, make that question the very last thing " +
-                        "you say. A rhetorical question or a jab earlier in the answer is fine, but never end on one unless " +
-                        "you want a reply. Stay open (end with a question) when the request obviously needs another step from " +
-                        "the user; close (no question) when it's done."
-                else ->
-                    "- A finished task (timer set, light switched …) ends the conversation by itself unless your answer ends " +
-                        "with a question. Call end_conversation when the user signals they're done (thanks, that's all, " +
-                        "goodbye, never mind) or the exchange has plainly run its course. Questions, facts, lookups and chat " +
-                        "stay open. Whenever you need something from the user, end your answer with that question."
-            }
+            val ending = endingPrompt(s)
             val followUps = when (s.assistantFollowUps) {
                 FollowUpLevel.NEVER -> "- After a task, just confirm it. Don't offer anything else."
                 FollowUpLevel.SOMETIMES ->
@@ -1097,6 +1151,30 @@ class AssistantController(
                 ending,
                 followUps,
             ).filter { it.isNotBlank() }.joinToString("\n").indented()
+        }
+
+        /**
+         * When the conversation stays open: only an answer tagged with [ReplyMarker.TAG] (or a pending yes) keeps
+         * listening, so a jab after a real question or a rhetorical question at the end are both fine.
+         */
+        fun endingPrompt(s: IslandSettings): String {
+            val tag = ReplyMarker.TAG
+            val how = "Put $tag at the very end of your answer whenever you're waiting for the user: you asked them " +
+                "something you want answered, offered something they should say yes or no to, or need more details or a " +
+                "choice. Rhetorical questions and jabs don't count, wherever they stand, and a jab after your real question " +
+                "is fine: the tag still goes last, after everything. It is silent and invisible; never mention it."
+            return when {
+                !s.assistantSelfEnd -> ""
+                s.assistantEndAfterAnswer ->
+                    "- The microphone opens again after your answer only when it ends with $tag (or a tool waits for a " +
+                        "yes); otherwise the conversation closes. $how Stay open that way when the request obviously needs " +
+                        "another step from the user; leave the tag off when it's done."
+                else ->
+                    "- A finished task (timer set, light switched …) ends the conversation by itself unless your answer ends " +
+                        "with $tag. Call end_conversation when the user signals they're done (thanks, that's all, goodbye, " +
+                        "never mind) or the exchange has plainly run its course. Questions, facts, lookups and chat stay " +
+                        "open. $how"
+            }
         }
 
         val NO_TOOLS_PROMPT = """

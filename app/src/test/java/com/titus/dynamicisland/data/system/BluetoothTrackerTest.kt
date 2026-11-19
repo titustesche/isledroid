@@ -57,7 +57,18 @@ class BluetoothTrackerTest {
 
     @Test fun seededDevicesAreKnownButNotNews() {
         t.seed(buds, "b", BluetoothKind.HEADPHONES, battery = 55)
-        assertEquals(BluetoothDeviceInfo(buds, BluetoothKind.HEADPHONES, 55), t.connected().single())
+        assertEquals(BluetoothDeviceInfo(buds, BluetoothKind.HEADPHONES, 55, setOf("b")), t.connected().single())
         assertNull(t.onConnected(buds, "b2", BluetoothKind.HEADPHONES, 1_000))
+    }
+
+    @Test fun connectedCarriesAddresses() {
+        t.onConnected(buds, "AA", BluetoothKind.HEADPHONES, 0)
+        assertEquals(setOf("AA"), t.connected().single().addresses)
+    }
+
+    @Test fun addressesStayWhileADropIsUnconfirmed() {
+        t.onConnected(watch, "w", BluetoothKind.WATCH, 0)
+        t.onDisconnected(watch, "w", 1_000)
+        assertEquals(setOf("w"), t.connected().single().addresses)
     }
 }

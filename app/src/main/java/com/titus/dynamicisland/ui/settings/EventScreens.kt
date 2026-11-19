@@ -29,7 +29,7 @@ import com.titus.dynamicisland.ui.island.MAX_TOOLS
 
 /** BLUETOOTH_CONNECT: granted state, and a way to ask for it (restarting the monitor once granted). */
 @Composable
-private fun rememberBluetoothPermission(): Pair<Boolean, () -> Unit> {
+internal fun rememberBluetoothPermission(): Pair<Boolean, () -> Unit> {
     val context = LocalContext.current
     fun granted() = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED

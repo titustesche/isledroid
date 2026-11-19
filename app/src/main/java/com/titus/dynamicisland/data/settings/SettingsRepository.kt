@@ -1,5 +1,6 @@
 package com.titus.dynamicisland.data.settings
 
+import com.titus.dynamicisland.data.situations.SituationsJson
 import android.content.Context
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -170,6 +171,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         val mapCloseOnArrival = booleanPreferencesKey("map_close_on_arrival")
         val mapArrivalRadiusM = intPreferencesKey("map_arrival_radius_m")
         val assistantEndAfterAnswer = booleanPreferencesKey("assistant_end_after_answer")
+        val situations = stringPreferencesKey("situations")
+        val situationsTellAssistant = booleanPreferencesKey("situations_tell_assistant")
+        val assistantQuestionFallback = booleanPreferencesKey("assistant_question_fallback")
         val openerEnabled = booleanPreferencesKey("opener_enabled")
         val openerRoutines = booleanPreferencesKey("opener_routines")
         val openerSituation = booleanPreferencesKey("opener_situation")
@@ -365,6 +369,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
             mapCloseOnArrival = this[K.mapCloseOnArrival] ?: d.mapCloseOnArrival,
             mapArrivalRadiusM = this[K.mapArrivalRadiusM] ?: d.mapArrivalRadiusM,
             assistantEndAfterAnswer = this[K.assistantEndAfterAnswer] ?: d.assistantEndAfterAnswer,
+            situations = SituationsJson.fromJson(this[K.situations]) ?: d.situations,
+            situationsTellAssistant = this[K.situationsTellAssistant] ?: d.situationsTellAssistant,
+            assistantQuestionFallback = this[K.assistantQuestionFallback] ?: d.assistantQuestionFallback,
             openerEnabled = this[K.openerEnabled] ?: d.openerEnabled,
             openerRoutines = this[K.openerRoutines] ?: d.openerRoutines,
             openerSituation = this[K.openerSituation] ?: d.openerSituation,
@@ -578,6 +585,9 @@ class SettingsRepository(private val context: Context, scope: CoroutineScope) {
         this[K.mapCloseOnArrival] = s.mapCloseOnArrival
         this[K.mapArrivalRadiusM] = s.mapArrivalRadiusM
         this[K.assistantEndAfterAnswer] = s.assistantEndAfterAnswer
+        this[K.situations] = SituationsJson.toJson(s.situations)
+        this[K.situationsTellAssistant] = s.situationsTellAssistant
+        this[K.assistantQuestionFallback] = s.assistantQuestionFallback
         this[K.openerEnabled] = s.openerEnabled
         this[K.openerRoutines] = s.openerRoutines
         this[K.openerSituation] = s.openerSituation

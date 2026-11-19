@@ -3,8 +3,16 @@ package com.titus.dynamicisland.data.system
 /** What a Bluetooth device is, for its symbol. */
 enum class BluetoothKind { HEADPHONES, CAR, WATCH, OTHER }
 
-/** A connected Bluetooth device; [battery] once it has reported one. */
-data class BluetoothDeviceInfo(val name: String, val kind: BluetoothKind, val battery: Int? = null)
+/**
+ * A connected Bluetooth device; [battery] once it has reported one. [addresses] are its links (both earbuds),
+ * or the last ones while a drop-out is still unconfirmed; situations match devices by them.
+ */
+data class BluetoothDeviceInfo(
+    val name: String,
+    val kind: BluetoothKind,
+    val battery: Int? = null,
+    val addresses: Set<String> = emptySet(),
+)
 
 /**
  * Keeps track of connected Bluetooth devices and decides which changes are worth announcing.
@@ -24,6 +32,8 @@ class BluetoothTracker {
 
     private class Device(val name: String, var kind: BluetoothKind) {
         val links = mutableSetOf<String>()
+        /** The links it had before the last one dropped, so it keeps its address while that's unconfirmed. */
+        var lastLinks: Set<String> = emptySet()
         /** The state last shown (or that would have been, if not rate-limited); null = never seen. */
         var shownConnected: Boolean? = null
         var lostAt = 0L
@@ -36,7 +46,8 @@ class BluetoothTracker {
 
     /** Connected devices, in the order they connected; one that just dropped out counts until that's confirmed. */
     fun connected(): List<BluetoothDeviceInfo> =
-        devices.values.filter { it.links.isNotEmpty() || it.shownConnected == true }.map { BluetoothDeviceInfo(it.name, it.kind, it.battery) }
+        devices.values.filter { it.links.isNotEmpty() || it.shownConnected == true }
+            .map { BluetoothDeviceInfo(it.name, it.kind, it.battery, it.links.toSet().ifEmpty { it.lastLinks }) }
 
     /** A device that was already connected when we started: known, but not news. */
     fun seed(name: String, address: String, kind: BluetoothKind, battery: Int?) {
@@ -60,6 +71,7 @@ class BluetoothTracker {
     /** Call [confirmDisconnect] [DEBOUNCE_MS] later; only then is it announced, if it's still gone. */
     fun onDisconnected(name: String, address: String, now: Long) {
         val d = devices[name] ?: device(name, BluetoothKind.OTHER)
+        if (address in d.links) d.lastLinks = d.links.toSet()
         d.links -= address
         if (d.links.isEmpty()) d.lostAt = now
     }

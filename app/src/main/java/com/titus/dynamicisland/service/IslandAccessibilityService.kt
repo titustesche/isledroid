@@ -59,6 +59,8 @@ class IslandAccessibilityService : AccessibilityService() {
         )
         overlay = OverlayWindow(this, appGraph).also { it.attach() }
         appGraph.system.start()
+        appGraph.signals.start()
+        appGraph.situations.start()
         appGraph.controller.globalAction = { action -> performGlobalAction(action) }
         settingsJob = appGraph.scope.launch {
             appGraph.settings.settings.map { it.enabled && it.volumeHud }.distinctUntilChanged().collect(::setKeyFiltering)
@@ -137,6 +139,11 @@ class IslandAccessibilityService : AccessibilityService() {
                 android.os.Handler(mainLooper).post { appGraph.assistant.debugAsk(question) }
             }
             writer.println("asking: $question")
+            return
+        }
+        if (args?.firstOrNull() == "situations") {
+            // Any build: live signals, each situation's conditions, the next wake and the enter/leave log.
+            writer.print(appGraph.situations.dump())
             return
         }
         if (args?.firstOrNull() == "trace") {
@@ -238,6 +245,7 @@ class IslandAccessibilityService : AccessibilityService() {
         settingsJob?.cancel()
         appGraph.controller.globalAction = null
         appGraph.system.stop()
+        appGraph.signals.stop()
         runCatching { unregisterReceiver(screenReceiver) }
         overlay?.detach()
         overlay = null

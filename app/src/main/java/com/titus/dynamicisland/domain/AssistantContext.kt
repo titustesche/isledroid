@@ -26,9 +26,12 @@ class AssistantContext(
     private val media: MediaRepository,
     private val notifications: NotificationRepository,
     private val habits: HabitTracker,
+    /** Names of the active situations, or none when the user doesn't want the assistant to know. */
+    private val activeSituations: () -> List<String> = { emptyList() },
 ) {
     /** One line each: Bluetooth (car flagged), music playing, route running, low battery. Empty when nothing's up. */
     fun situation(): List<String> = buildList {
+        situationsLine(activeSituations())?.let(::add)
         val st = system.state.value
         val car = st.bluetooth.filter { it.kind == BluetoothKind.CAR }
         if (car.isNotEmpty()) add("Connected to the car (Bluetooth: ${car.joinToString { it.name }}): the user is probably driving or about to.")
@@ -115,7 +118,10 @@ class AssistantContext(
         context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
 
-    private companion object {
-        const val MESSAGES_WINDOW_MS = 3 * 60 * 60_000L
+    companion object {
+        private const val MESSAGES_WINDOW_MS = 3 * 60 * 60_000L
+
+        fun situationsLine(names: List<String>): String? =
+            names.takeIf { it.isNotEmpty() }?.let { "Active situations (set up by the user): ${it.joinToString()}." }
     }
 }

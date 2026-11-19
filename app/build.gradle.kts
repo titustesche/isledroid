@@ -90,6 +90,8 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    // The real org.json: Android's is a stub in JVM unit tests.
+    testImplementation(libs.org.json)
     testImplementation(libs.coroutines.test)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)

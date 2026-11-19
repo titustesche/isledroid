@@ -13,6 +13,7 @@ import com.titus.dynamicisland.ui.theme.Term
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.GridView
@@ -92,6 +93,11 @@ fun HomeScreen(s: SettingsHandle, onNavigate: (String) -> Unit, onReset: () -> U
         item {
             NavRow("Quick tools", "Flashlight, sound mode, favourite apps …", Icons.Rounded.GridView, Color(0xFFC77DFF)) {
                 onNavigate(Routes.TOOLS)
+            }
+        }
+        item {
+            NavRow("Situations", "When features switch on: time, Bluetooth, Wi-Fi …", Icons.Rounded.Tune, Color(0xFF30D158)) {
+                onNavigate(Routes.SITUATIONS)
             }
         }
         item {

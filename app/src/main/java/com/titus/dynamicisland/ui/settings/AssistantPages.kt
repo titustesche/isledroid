@@ -151,7 +151,7 @@ fun ConversationScreen(s: SettingsHandle, onBack: () -> Unit) {
     SettingsScaffold("Conversation", onBack, v, preview = PreviewSample.ASSISTANT) {
         item {
             SwitchSetting("Ends by itself", v.assistantSelfEnd, { on -> s.update { it.copy(assistantSelfEnd = on) } },
-                summary = "Stops listening when an answer doesn't end with a question for you")
+                summary = "Stops listening when an answer doesn't wait for anything from you")
         }
         item {
             SwitchSetting("Any answer can close it", v.assistantEndAfterAnswer, { on -> s.update { it.copy(assistantEndAfterAnswer = on) } },
@@ -161,6 +161,11 @@ fun ConversationScreen(s: SettingsHandle, onBack: () -> Unit) {
         if (!v.assistantEndAfterAnswer) item {
             SwitchSetting("Closes after a finished task", v.assistantEndAfterTask, { on -> s.update { it.copy(assistantEndAfterTask = on) } },
                 summary = "A timer set or a route started ends it, unless the answer asks something", enabled = v.assistantSelfEnd)
+        }
+        item {
+            SwitchSetting("A final \"?\" keeps it open", v.assistantQuestionFallback, { on -> s.update { it.copy(assistantQuestionFallback = on) } },
+                summary = if (v.assistantQuestionFallback) "Also listens after a rhetorical question at the end"
+                else "Only when it really waits for your answer; jabs after a question are fine", enabled = v.assistantSelfEnd)
         }
         item {
             IntSliderSetting("Waits for your reply", v.assistantReplyWaitS, 3..30, "s") { n -> s.update { it.copy(assistantReplyWaitS = n) } }
