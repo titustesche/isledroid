@@ -58,7 +58,7 @@ class DeviceTools(
 
     private val readScreen = tool(
         "read_screen",
-        "Read the text on the phone's screen: the app the user was using when they called you. Use it whenever they refer to " +
+        "Read the text on the phone's screen: the app the user was using when they opened you. Use it whenever they refer to " +
             "what they're looking at (\"what's this\", \"summarize this\", \"reply to this\", \"who is that\"). Lines in [brackets] " +
             "are buttons, fields and switches. Passwords are never included. When what you need isn't in the text, use look_at_screen.",
     ) { _ -> screenText() }
